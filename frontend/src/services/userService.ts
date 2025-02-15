@@ -31,10 +31,25 @@ export const registerUser = async (userData: Partial<User>) => {
   return response.data;
 };
 
-// Login user
-export const loginUser = async (credentials: { email: string; password: string }) => {
-  const response = await api.post("/api/auth/signin", credentials);
-  return response.data;
+/**
+ * Logs in the user.
+ * @param email - The user's email.
+ * @param password - The user's password.
+ * @param rememberMe - Boolean flag for session persistence.
+ * @returns Promise resolving user token or error message.
+ */
+export const loginUser = async (credentials: { email: string, password: string, rememberMe: boolean }) => {
+    const response = await api.post("/api/auth/signin", credentials);
+
+    if (response.status === 200) {
+      // Store token based on "Remember Me" option
+      if (credentials.rememberMe) {
+        localStorage.setItem("token", response.data.token);
+      } else {
+        sessionStorage.setItem("token", response.data.token);
+      }
+    }
+    return response.data;
 };
 
 // Log out user

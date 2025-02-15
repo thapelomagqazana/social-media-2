@@ -54,7 +54,7 @@ export const HeroSection = () => {
             color="inherit"
             size="large"
             sx={{ mx: 1, borderRadius: "25px", px: 4, borderColor: "white" }}
-            onClick={() => navigate("/login")}
+            onClick={() => navigate("/signin")}
           >
             Sign In
           </Button>
