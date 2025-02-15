@@ -139,7 +139,7 @@ describe("POST /api/auth/signup", () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.message).toBe("Email already registered");
+    expect(res.body.message).toBe("This email is already in use. Try logging in instead.");
   });
 
   // ⚠️ EDGE CASES

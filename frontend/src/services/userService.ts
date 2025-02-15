@@ -10,7 +10,20 @@ export interface User {
   name: string;
   email: string;
   password?: string;
+  displayName?: string;
+  profilePicture?: string;
+  bio?: string;
+  interests?: string[];
 }
+
+// Type for updating user profile
+export interface UserProfileUpdate {
+  displayName?: string;
+  bio?: string;
+  interests?: string[];
+  profilePicture?: File | null;
+}
+
 
 // Register a new user
 export const registerUser = async (userData: Partial<User>) => {
@@ -20,7 +33,7 @@ export const registerUser = async (userData: Partial<User>) => {
 
 // Login user
 export const loginUser = async (credentials: { email: string; password: string }) => {
-  const response = await api.post("/auth/signin", credentials);
+  const response = await api.post("/api/auth/signin", credentials);
   return response.data;
 };
 
@@ -29,7 +42,7 @@ export const logoutUser = async () => {
     const token = localStorage.getItem("token");
     if (!token) return; // Prevent unnecessary API calls
   
-    const response = await api.get("/auth/signout",{
+    const response = await api.get("/api/auth/signout",{
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -53,7 +66,7 @@ export const fetchUsers = async () => {
 };
 
 // Update user profile
-export const updateUser = async (userId: string, updates: Partial<User>) => {
+export const updateUser = async (userId: string, updates: UserProfileUpdate) => {
   const response = await api.put(`/api/users/${userId}`, updates);
   return response.data;
 };

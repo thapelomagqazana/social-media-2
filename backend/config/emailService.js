@@ -1,36 +1,41 @@
 import nodemailer from "nodemailer";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 /**
- * Nodemailer transporter configuration for sending emails
+ * @description Sends a email with a reset link for either password reset or verification
+ * @param {string} userEmail - Recipient's email
+ * @param {string} resetToken - Unique password reset token
  */
-const transporter = nodemailer.createTransport({
-  service: "Gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-/**
- * @desc Send verification email to the user
- * @param {string} email - The user's email address
- * @param {string} token - The verification token
- * @returns {Promise<void>} - Returns a promise indicating the email status
- */
-exports.sendVerificationEmail = async (email, token) => {
+export const sendEmail = async (userEmail, resetToken) => {
   try {
-    const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+    const transporter = nodemailer.createTransport({
+      service: "gmail", // Use 'gmail' or your SMTP provider
+      auth: {
+        user: process.env.EMAIL_USER, // Your email address
+        pass: process.env.EMAIL_PASS, // App password (not your personal password)
+      },
+    });
+
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Verify Your Email",
-      html: `<p>Click the link below to verify your email:</p><a href="${verificationLink}">Verify Email</a>`,
+      from: `"Support Team" <${process.env.EMAIL_USER}>`,
+      to: userEmail,
+      subject: "Password Reset Request",
+      html: `
+        <h2>Password Reset Request</h2>
+        <p>Click the link below to reset your password:</p>
+        <a href="${resetLink}" style="color: #1DA1F2; font-weight: bold;">Reset Your Password</a>
+        <p>This link will expire in 1 hour. If you did not request this, please ignore this email.</p>
+      `,
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log(`Verification email sent to ${email}`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`Password reset email sent: ${info.response}`);
   } catch (error) {
-    console.error("Error sending verification email:", error);
+    console.error("Error sending email:", error);
+    throw new Error("Failed to send password reset email.");
   }
 };

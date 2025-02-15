@@ -1,10 +1,13 @@
 import jwt from "jsonwebtoken";
 
 /**
- * @desc Generate a JWT token
- * @param {string} email - User email
- * @returns {string} - Signed JWT token
+ * @description Generate JWT Token for user authentication
+ * @param {string} userId - The user ID to generate a token for
+ * @param {boolean} rememberMe - If true, extends token expiration
+ * @returns {string} JWT token
  */
-exports.generateToken = (email) => {
-  return jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: "1d" });
+export const generateToken = (userId, expiration) => {
+  return jwt.sign({ userId }, process.env.JWT_SECRET, {
+    expiresIn: expiration,
+  });
 };

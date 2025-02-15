@@ -1,239 +1,194 @@
 /**
- * @fileoverview Tests for user authentication endpoint (/auth/signin)
- * @description Ensures login functionality works correctly, including validation and security cases.
+ * @file signin.test.js
+ * @description Tests for the POST /api/auth/signin endpoint.
  */
 
 import request from "supertest";
-import app from "../../app.js";
 import mongoose from "mongoose";
-import dotenv from "dotenv";
-import User from "../../models/User.js"; // Import User model
+import { MongoMemoryServer } from "mongodb-memory-server";
+import app from "../../app"; // Your Express app
+import User from "../../models/User";
 
-// Load environment variables
-dotenv.config();
+let mongoServer;
 
-/**
- * @beforeAll Connect to the test database before running tests
- */
 beforeAll(async () => {
-  await mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
-
-  // Ensure database is clean before tests
-  await User.deleteMany({});
-
-  // Seed database with valid users
-  await User.create([
-    { name: "John Doe", email: "john@example.com", password: "Password@123" },
-    { name: "Jane Smith", email: "jane.smith@example.com", password: "JanePass@456" },
-  ]);
+  mongoServer = await MongoMemoryServer.create();
+  const mongoUri = mongoServer.getUri();
+  await mongoose.connect(mongoUri);
 });
 
-/**
- * @group User Login Tests
- * @description Runs tests for /auth/signin endpoint
- */
-describe("POST /auth/signin - User Login", () => {
-  /**
-   * ✅ Positive Test Cases
-   */
-  it("✅ Should log in John Doe successfully", async () => {
-    const response = await request(app).post("/auth/signin").send({
-      email: "john@example.com",
-      password: "Password@123",
-    });
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("token");
-  });
-
-  it("✅ Should log in Jane Smith successfully", async () => {
-    const response = await request(app).post("/auth/signin").send({
-      email: "jane.smith@example.com",
-      password: "JanePass@456",
-    });
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("token");
-  });
-
-  it("✅ Should allow email case insensitivity", async () => {
-    const response = await request(app).post("/auth/signin").send({
-      email: "JOHN@EXAMPLE.COM",
-      password: "Password@123",
-    });
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("token");
-  });
-
-  it("✅ Should trim spaces from email before authenticating", async () => {
-    const response = await request(app).post("/auth/signin").send({
-      email: "  john@example.com   ",
-      password: "Password@123",
-    });
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("token");
-  });
-
-  /**
-   * ❌ Negative Test Cases (Invalid Inputs)
-   */
-  it("❌ Should fail when email is not registered", async () => {
-    const response = await request(app).post("/auth/signin").send({
-      email: "notfound@example.com",
-      password: "Password@123",
-    });
-
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid credentials");
-  });
-
-  it("❌ Should fail when password is incorrect", async () => {
-    const response = await request(app).post("/auth/signin").send({
-      email: "john@example.com",
-      password: "WrongPass@123",
-    });
-
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid credentials");
-  });
-
-  it("❌ Should fail when email is empty", async () => {
-    const response = await request(app).post("/auth/signin").send({
-      email: "",
-      password: "Password@123",
-    });
-
-    expect(response.status).toBe(400);
-    expect(response.body).toHaveProperty("message", "Email is required");
-  });
-
-  it("❌ Should fail when password is empty", async () => {
-    const response = await request(app).post("/auth/signin").send({
-      email: "john@example.com",
-      password: "",
-    });
-
-    expect(response.status).toBe(400);
-    expect(response.body).toHaveProperty("message", "Password is required");
-  });
-
-  it("❌ Should fail when both email and password are empty", async () => {
-    const response = await request(app).post("/auth/signin").send({
-      email: "",
-      password: "",
-    });
-
-    expect(response.status).toBe(400);
-    expect(response.body).toHaveProperty("message", "Email is required, Password is required");
-  });
-
-  it("❌ Should fail when email format is invalid", async () => {
-    const response = await request(app).post("/auth/signin").send({
-      email: "invalid-email",
-      password: "Password@123",
-    });
-
-    expect(response.status).toBe(400);
-    expect(response.body).toHaveProperty("message", "Please enter a valid email address");
-  });
-
-  /**
-   * 🔺 Security Tests
-   */
-  it("🔺 Should reject SQL injection attempts", async () => {
-    const response = await request(app).post("/auth/signin").send({
-      email: "'; DROP TABLE users; --",
-      password: "Password@123",
-    });
-
-    expect(response.status).toBe(400);
-    expect(response.body).toHaveProperty("message", "Please enter a valid email address");
-  });
-
-  it("🔺 Should reject cross-site scripting (XSS) attempts", async () => {
-    const response = await request(app).post("/auth/signin").send({
-      email: "<script>alert('XSS')</script>",
-      password: "Password@123",
-    });
-
-    expect(response.status).toBe(400);
-    expect(response.body).toHaveProperty("message", "Please enter a valid email address");
-  });
-
-    /**
-   * 🔹 Edge Cases
-   */
-    it("🔹 Should reject extremely long email addresses", async () => {
-        const response = await request(app).post("/auth/signin").send({
-          email: "a".repeat(256) + "@example.com",
-          password: "Password@123",
-        });
-    
-        expect(response.status).toBe(400);
-        expect(response.body).toHaveProperty("message", "Email must be at most 255 characters long");
-    });
-
-    it("🔹 Should reject email containing emojis", async () => {
-    const response = await request(app).post("/auth/signin").send({
-        email: "😀@example.com",
-        password: "Password@123",
-    });
-
-        expect(response.status).toBe(400);
-        expect(response.body).toHaveProperty("message", "Please enter a valid email address");
-    });
-
-    // it("🔹 Should allow emoji in password", async () => {
-    // const response = await request(app).post("/auth/signin").send({
-    //     email: "john@example.com",
-    //     password: "😀😃😄😁@123",
-    // });
-
-    //     expect(response.status).toBe(200);
-    //     expect(response.body).toHaveProperty("token");
-    // });
-
-    it("🔹 Should reject email with multiple consecutive dots", async () => {
-    const response = await request(app).post("/auth/signin").send({
-        email: "john..doe@example.com",
-        password: "Password@123",
-    });
-
-        expect(response.status).toBe(400);
-        expect(response.body).toHaveProperty("message", "Please enter a valid email address");
-    });
-
-    // it("🔹 Should allow email with Unicode characters", async () => {
-    // const response = await request(app).post("/auth/signin").send({
-    //     email: "jöhn@example.com",
-    //     password: "Password@123",
-    // });
-
-    //     expect(response.status).toBe(200);
-    //     expect(response.body).toHaveProperty("token");
-    // });
-});
-
-/**
- * @afterEach Clean up the test database after each test
- */
-afterEach(async () => {
-  await User.deleteMany({});
-  await User.create([
-    { name: "John Doe", email: "john@example.com", password: "Password@123" },
-    { name: "Jane Smith", email: "jane.smith@example.com", password: "JanePass@456" },
-  ]);
-});
-
-/**
- * @afterAll Close database connection
- * @description Ensures tests do not hang due to open DB connections
- */
 afterAll(async () => {
-  await mongoose.connection.close();
+  await mongoose.disconnect();
+  await mongoServer.stop();
+});
+
+beforeEach(async () => {
+  await User.deleteMany(); // Clear database before each test
+});
+
+// Helper function to create a test user
+const createTestUser = async (email, password) => {
+  const user = new User({ name: "Test User", email, password });
+  await user.save();
+};
+
+describe("POST /api/auth/signin", () => {
+  // ✅ Positive Test Cases
+  test("TC-001: Should log in with valid email and password", async () => {
+    await createTestUser("testuser@example.com", "SecurePass123");
+
+    const res = await request(app).post("/api/auth/signin").send({
+      email: "testuser@example.com",
+      password: "SecurePass123",
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("token");
+    expect(res.body.message).toBe("Welcome back, Test User!");
+  });
+
+  test("TC-002: Should log in with 'Remember Me' checked and extend session", async () => {
+    await createTestUser("remember@example.com", "SecurePass123");
+
+    const res = await request(app).post("/api/auth/signin").send({
+      email: "remember@example.com",
+      password: "SecurePass123",
+      rememberMe: true,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("token");
+    expect(res.body.tokenExpiration).toBe("7d"); // Should have extended expiration
+  });
+
+  test("TC-003: Should log in after successful signup", async () => {
+    await createTestUser("newuser@example.com", "Password123");
+
+    const res = await request(app).post("/api/auth/signin").send({
+      email: "newuser@example.com",
+      password: "Password123",
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("token");
+  });
+
+  test("TC-004: Should log in with email in uppercase (case-insensitive)", async () => {
+    await createTestUser("case@example.com", "SecurePass123");
+
+    const res = await request(app).post("/api/auth/signin").send({
+      email: "CASE@EXAMPLE.COM",
+      password: "SecurePass123",
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("token");
+  });
+
+  // ❌ Negative Test Cases
+  test("TC-005: Should return error for incorrect password", async () => {
+    await createTestUser("wrongpass@example.com", "CorrectPass123");
+
+    const res = await request(app).post("/api/auth/signin").send({
+      email: "wrongpass@example.com",
+      password: "WrongPass456",
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body.message).toBe("Incorrect password. Try again.");
+  });
+
+  test("TC-006: Should return error for unregistered email", async () => {
+    const res = await request(app).post("/api/auth/signin").send({
+      email: "unregistered@example.com",
+      password: "SomePass123",
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.body.message).toBe("No account found with this email. Sign up instead?");
+  });
+
+  test("TC-007: Should return error when email is missing", async () => {
+    const res = await request(app).post("/api/auth/signin").send({
+      password: "SecurePass123",
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.errors[0].msg).toBe("Email is required");
+  });
+
+  test("TC-008: Should return error when password is missing", async () => {
+    const res = await request(app).post("/api/auth/signin").send({
+      email: "test@example.com",
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.errors[0].msg).toBe("Password is required");
+  });
+
+  test("TC-009: Should return error for invalid email format", async () => {
+    const res = await request(app).post("/api/auth/signin").send({
+      email: "invalid-email",
+      password: "SecurePass123",
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.errors[0].msg).toBe("Invalid email format");
+  });
+
+  // 🔄 Edge Cases
+  test("TC-016: Should trim spaces around email and log in successfully", async () => {
+    await createTestUser("trim@example.com", "SecurePass123");
+
+    const res = await request(app).post("/api/auth/signin").send({
+      email: "  trim@example.com  ",
+      password: "SecurePass123",
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("token");
+  });
+
+  test("TC-017: Should handle leading/trailing spaces and uppercase email", async () => {
+    await createTestUser("case@example.com", "SecurePass123");
+
+    const res = await request(app).post("/api/auth/signin").send({
+      email: "  CASE@EXAMPLE.COM  ",
+      password: "SecurePass123",
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("token");
+  });
+
+  test("TC-020: Should prevent SQL injection attempts", async () => {
+    const res = await request(app).post("/api/auth/signin").send({
+      email: "' OR '1'='1",
+      password: "anyPassword",
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.errors[0].msg).toBe("Invalid email format");
+  });
+
+  test("TC-021: Should prevent script injection attacks", async () => {
+    const res = await request(app).post("/api/auth/signin").send({
+      email: "<script>alert('Hacked')</script>",
+      password: "anyPass",
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.errors[0].msg).toBe("Invalid email format");
+  });
+
+  test("TC-022: Should return error for an extremely long email", async () => {
+    const longEmail = "a".repeat(310) + "@example.com";
+    const res = await request(app).post("/api/auth/signin").send({
+      email: longEmail,
+      password: "SecurePass123",
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.errors[0].msg).toBe("Invalid email length.");
+  });
 });

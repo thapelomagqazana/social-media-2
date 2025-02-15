@@ -20,6 +20,7 @@ import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup"; // Yup Resolver
 import * as yup from "yup"; // Validation Schema
 import { registerUser } from "../../services/UserService"; // Import register function
+import { useAuth } from "../../context/AuthContext";
 
 // Validation Schema
 const schema = yup.object().shape({
@@ -27,7 +28,7 @@ const schema = yup.object().shape({
   email: yup.string().email("Please enter a valid email address.").required("Email is required."),
   password: yup
     .string()
-    .min(6, "Password must be at least 6 characters long.")
+    .min(8, "Password must be at least 8 characters long.")
     .required("Password is required."),
   confirmPassword: yup
     .string()
@@ -39,7 +40,7 @@ const schema = yup.object().shape({
 // Password Strength Function
 const getPasswordStrength = (password: string): string => {
   if (password.length < 6) return "Weak";
-  if (password.length < 10) return "Medium";
+  if (password.length < 8) return "Medium";
   if (/[A-Z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password)) return "Strong";
   return "Medium";
 };
@@ -50,6 +51,7 @@ const getPasswordStrength = (password: string): string => {
  */
 export const SignUpForm = () => {
   const navigate = useNavigate();
+  const { authUser } = useAuth();
   const [passwordStrength, setPasswordStrength] = useState("");
   const [loading, setLoading] = useState(false); // Loading state
   const [snackbar, setSnackbar] = useState({
@@ -79,14 +81,15 @@ export const SignUpForm = () => {
 
     try {
       // Call API to register user
-      await registerUser({ name: formData.name, email: formData.email, password: formData.password });
+      const response = await registerUser({ name: formData.name, email: formData.email, password: formData.password });
+      authUser(response);
 
       setSnackbar({
         open: true,
-        message: "Your account has been created successfully!",
+        message: response.message,
         severity: "success",
       });
-      setTimeout(() => navigate("/verify-email"), 2000); // Redirect after success
+      setTimeout(() => navigate("/onboarding"), 2000); // Redirect after success
     } catch (error: unknown) {
       if (error instanceof Error && "response" in error) {
         const axiosError = error as { response?: { data?: { message?: string } } }; // Proper type assertion

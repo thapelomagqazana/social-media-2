@@ -9,6 +9,7 @@ import React from "react";
 import { Routes, Route } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
 // import Home from "./pages/Home";
+import OnboardingPage from "./pages/OnboardingPage";
 import SignUpPage from "./pages/SignUpPage";
 import SignInPage from "./pages/SignInPage";
 import UsersListPage from "./pages/UsersListPage";
@@ -27,6 +28,7 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/signup" element={<SignUpPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/signin" element={<SignInPage />} />
         <Route path="/users" element={<UsersListPage />} />
         <Route path="/profile/:userId" element={<ViewProfilePage />} />
