@@ -108,7 +108,10 @@ export const signInUser = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+
+    // Normalize email (trim spaces & lowercase)
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
       return res.status(404).json({ message: "No account found with this email." });
@@ -119,7 +122,10 @@ export const forgotPassword = async (req, res) => {
     user.resetPasswordExpires = Date.now() + 3600000;
     await user.save();
 
-    await sendEmail(user.email, resetToken);
+    // Send reset email only if not in test mode
+    if (process.env.NODE_ENV !== "test") {
+      await sendEmail(user.email, resetToken);
+    }
 
     res.status(200).json({ message: "Password reset email sent. Check your inbox." });
   } catch (error) {
@@ -156,3 +162,41 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ message: "Server error. Please try again later." });
   }
 };
+
+
+/**
+ * @function logoutUser
+ * @description Logs out a user by clearing JWT and validating the request token.
+ * @route GET /api/auth/signout
+ * @access Protected
+ */
+export const logoutUser = async (req, res) => {
+  try {
+    let token = req.headers.authorization?.startsWith("Bearer")
+      ? req.headers.authorization.trim().split(" ")[1]
+      : null;
+
+    // Check if token exists in cookie
+    if (!token && req.cookies.jwt) {
+      token = req.cookies.jwt;
+    }
+
+    if (!token) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    try {
+      jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error) {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    // Clear the JWT cookie (if used)
+    res.clearCookie("jwt");
+
+    return res.status(200).json({ message: "User signed out successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+

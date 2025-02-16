@@ -1,10 +1,18 @@
-import React, { createContext, useContext, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { jwtDecode } from "jwt-decode";
 import { logoutUser } from "../services/userService";
-import { useNavigate } from "react-router-dom";
+
+// Define user type
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  profilePicture?: string;
+}
 
 // Define AuthContext type
 interface AuthContextType {
+  user: User | null;
   authUser: (data: any) => void;
   logout: () => void;
 }
@@ -29,7 +37,7 @@ interface DecodedToken {
 
 // AuthProvider Component
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const navigate = useNavigate();
+  const [user, setUser] = useState<User | null>(null);
 
   /**
    * Function to check if the token is expired
@@ -38,11 +46,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const decoded: DecodedToken = jwtDecode(token);
       return decoded.exp * 1000 < Date.now(); // Convert exp to milliseconds
-    } catch (error) {
+    } catch {
       return true; // Assume expired if decoding fails
     }
   };
-
 
   /**
    * Retrieve credentials on app load
@@ -57,13 +64,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-
   /**
    * Save credentials on successful login
    */
   const authUser = (data: any) => {
     localStorage.setItem("token", data.token);
     localStorage.setItem("userId", data.user.id);
+    setUser(data.user);
   };
 
   /**
@@ -73,10 +80,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logoutUser();
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
-    navigate("/signin");
+    setUser(null);
   };
 
-  return <AuthContext.Provider value={{ authUser, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, authUser, logout }}>{children}</AuthContext.Provider>;
 };
 
 // Export AuthContext & useAuth properly

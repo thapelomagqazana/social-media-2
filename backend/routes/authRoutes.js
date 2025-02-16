@@ -3,12 +3,22 @@ import {
     registerUser,
     signInUser,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    logoutUser
 } from "../controllers/authController";
 import { 
-    validateSignup,
-    validateSignin,
+    validateSignupRequest,
+    validateSigninRequest,
+    validateForgotPasswordRequest,
 } from "../middleware/validateRequest";
+import rateLimit from "express-rate-limit";
+import { protect } from "../middleware/authMiddleware";
+
+const resetPasswordLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: process.env.NODE_ENV === "test" ? 40 : 3, // Limit each IP to 3 requests per minute
+  message: { message: "Too many requests. Please try again later." },
+});
 
 const router = express.Router();
 
@@ -20,7 +30,7 @@ const router = express.Router();
  * @param {Object} res - Express response object
  * @returns {Object} - Success message or error details
  */
-router.post("/signup", validateSignup, registerUser);
+router.post("/signup", validateSignupRequest, registerUser);
 
 /**
  * @route POST /api/auth/signin
@@ -30,7 +40,7 @@ router.post("/signup", validateSignup, registerUser);
  * @param {Object} res - Express response object with the generated token or error message
  * @returns {Object} - JWT token for authenticated users or error details
  */
-router.post("/signin", validateSignin, signInUser);
+router.post("/signin", validateSigninRequest, signInUser);
 
 /**
  * @route POST /api/auth/reset-password
@@ -40,7 +50,7 @@ router.post("/signin", validateSignin, signInUser);
  * @param {Object} res - Express response object
  * @returns {Object} - Success message or error details
  */
-router.post("/reset-password", forgotPassword);
+router.post("/reset-password", validateForgotPasswordRequest, resetPasswordLimiter,forgotPassword);
 
 /**
  * @route POST /api/auth/reset-password/:token
@@ -51,5 +61,7 @@ router.post("/reset-password", forgotPassword);
  * @returns {Object} - Success message or error details
  */
 router.post("/reset-password/:token", resetPassword);
+
+router.get("/signout", protect, logoutUser);
 
 module.exports = router;

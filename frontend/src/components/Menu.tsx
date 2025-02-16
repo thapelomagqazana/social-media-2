@@ -10,10 +10,11 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { AppBar, Toolbar, Button, Typography } from "@mui/material";
 import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const Menu: React.FC = () => {
-  const { logout } = useAuth(); // Get user state and logout function
-  const userId = localStorage.getItem("userId");
+  const { user, logout } = useAuth(); // Get user state and logout function
+  const navigate = useNavigate();
 
   return (
     <AppBar position="static" color="primary">
@@ -23,12 +24,12 @@ const Menu: React.FC = () => {
         </Typography>
 
         {/* Dynamic Home Button */}
-        <Button color="inherit" component={Link} to={userId ? "/dashboard" : "/"}>
+        <Button color="inherit" component={Link} to={user ? "/dashboard" : "/"}>
           Home
         </Button>
 
         {/* Show these buttons only if user is NOT logged in */}
-        {!userId ? (
+        {!user ? (
           <>
             <Button color="inherit" component={Link} to="/signup">
               Sign Up
@@ -43,10 +44,10 @@ const Menu: React.FC = () => {
             <Button color="inherit" component={Link} to={"/users"}>
               Users
             </Button>
-            <Button color="inherit" component={Link} to={`/profile/${userId}`}>
+            <Button color="inherit" component={Link} to={`/profile/${user.id}`}>
               Profile
             </Button>
-            <Button color="inherit" onClick={logout}>
+            <Button color="inherit" onClick={() => { logout(); navigate("/signin"); }}>
               Logout
             </Button>
           </>

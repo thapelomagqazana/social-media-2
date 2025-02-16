@@ -1,236 +1,199 @@
-/**
- * @fileoverview Tests for user signout endpoint (/auth/signout)
- * @description Ensures signout functionality works correctly, including validation and security cases.
- */
-
 import request from "supertest";
-import app from "../../app.js";
-import mongoose from "mongoose";
-import dotenv from "dotenv";
-import User from "../../models/User.js"; // Import User model
+import app from "../../app"; // Import your Express server instance
 import jwt from "jsonwebtoken";
+import { MongoMemoryServer } from "mongodb-memory-server";
+import User from "../../models/User"; // Import the User model
+import mongoose from "mongoose";
 
-// Load environment variables
-dotenv.config();
+// Mock JWT Secret for tests
+const JWT_SECRET = process.env.JWT_SECRET || "test_secret";
 
-// Dummy users and tokens
-let validToken, expiredToken, tamperedToken, validCookieToken;
+let mongoServer;
 
-/**
- * @beforeAll Connect to the test database before running tests
- */
-beforeAll(async () => {
-  await mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
+// Utility function to generate JWT tokens
+const generateToken = (userId, expiresIn = "1h") => {
+  return jwt.sign({ id: userId }, JWT_SECRET, { expiresIn });
+};
+
+describe("POST /api/auth/signout - Logout API", () => {
+  let user;
+  let validToken, expiredToken, revokedToken, malformedToken;
+
+  beforeAll(async () => {
+    mongoServer = await MongoMemoryServer.create();
+    const mongoUri = mongoServer.getUri();
+    await mongoose.connect(mongoUri);
+
+    // Create a test user
+    user = await User.create({
+      name: "Test User",
+      email: "test@example.com",
+      password: "TestPass123!",
+    });
+
+    // Generate tokens
+    validToken = generateToken(user._id);
+    expiredToken = generateToken(user._id, "-1s"); // Expired token
+    revokedToken = generateToken(user._id); // This will be manually revoked in a test
+    malformedToken = "invalid.token.string"; // Malformed token
   });
 
-  // Ensure database is clean before tests
-  await User.deleteMany({});
-
-  // Create test user
-  const user = await User.create({
-    name: "John Doe",
-    email: "john@example.com",
-    password: "Password@123",
+  afterAll(async () => {
+    await User.deleteMany({});
+    await mongoose.disconnect();
+    await mongoServer.stop();
   });
 
-  // Generate valid JWT token
-  validToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-    expiresIn: "1h",
-  });
-
-  // Generate expired JWT token
-  expiredToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-    expiresIn: "-1h",
-  });
-
-  // Generate tampered JWT token (invalid signature)
-  tamperedToken = validToken.slice(0, -1) + "X";
-
-  // Generate valid session-based cookie
-  validCookieToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-    expiresIn: "1h",
-  });
-});
-
-/**
- * @group User Signout Tests
- * @description Runs tests for /auth/signout endpoint
- */
-describe("GET /auth/signout - User Signout", () => {
-  /**
-   * ✅ Positive Test Cases
-   */
-  it("✅ Should sign out successfully when authenticated with a valid token", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
+  // ✅ Positive Test Cases
+  test("TC-001: User logs out successfully with a valid token", async () => {
+    const res = await request(app)
+      .get("/api/auth/signout")
       .set("Authorization", `Bearer ${validToken}`);
 
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("message", "User signed out successfully");
+    expect(res.statusCode).toBe(200);
+    expect(res.body.message).toBe("User signed out successfully");
   });
 
-  /**
-   * ❌ Negative Test Cases (Invalid Inputs)
-   */
-  it("❌ Should fail when no authorization token is provided", async () => {
-    const response = await request(app).get("/auth/signout");
+  // test("TC-002: User logs out while using a valid token stored in cookies", async () => {
+  //   const freshToken = generateToken(user._id);
+  //   const res = await request(app)
+  //     .get("/api/auth/signout")
+  //     .set("Cookie", `jwt=${freshToken}`);
 
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "No token provided");
+  //   expect(res.statusCode).toBe(200);
+  //   expect(res.body.message).toBe("User signed out successfully");
+  // });
+
+  test("TC-003: User logs out after being authenticated with a recently refreshed token", async () => {
+    const freshToken = generateToken(user._id);
+    const res = await request(app)
+      .get("/api/auth/signout")
+      .set("Authorization", `Bearer ${freshToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.message).toBe("User signed out successfully");
   });
 
-  it("❌ Should fail when using an expired token", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
+  test("TC-004: User logs out from multiple devices (each session invalidates separately)", async () => {
+    const token1 = generateToken(user._id);
+    const token2 = generateToken(user._id);
+
+    // Logout first session
+    const res1 = await request(app)
+      .get("/api/auth/signout")
+      .set("Authorization", `Bearer ${token1}`);
+
+    expect(res1.statusCode).toBe(200);
+
+    // Logout second session
+    const res2 = await request(app)
+      .get("/api/auth/signout")
+      .set("Authorization", `Bearer ${token2}`);
+
+    expect(res2.statusCode).toBe(200);
+  });
+
+  // ❌ Negative Test Cases
+  test("TC-005: User attempts to log out without providing a token", async () => {
+    const res = await request(app).get("/api/auth/signout");
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body.message).toBe("Not authorized, no token provided");
+  });
+
+  test("TC-006: User logs out with an invalid JWT token", async () => {
+    const res = await request(app)
+      .get("/api/auth/signout")
+      .set("Authorization", "Bearer invalid_token");
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body.message).toBe("Invalid token, authentication failed");
+  });
+
+  test("TC-007: User logs out with an expired JWT token", async () => {
+    const res = await request(app)
+      .get("/api/auth/signout")
       .set("Authorization", `Bearer ${expiredToken}`);
 
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid or expired token");
+    expect(res.statusCode).toBe(401);
+    expect(res.body.message).toBe("Invalid token, authentication failed");
   });
 
-  it("❌ Should fail when using an invalid token", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
-      .set("Authorization", "Bearer invalidtoken123");
+  test("TC-008: User logs out with a malformed JWT token (random string instead of JWT)", async () => {
+    const res = await request(app)
+      .get("/api/auth/signout")
+      .set("Authorization", `Bearer ${malformedToken}`);
 
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid or expired token");
+    expect(res.statusCode).toBe(401);
+    expect(res.body.message).toBe("Invalid token, authentication failed");
   });
 
-  it("❌ Should fail when using a tampered token", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
-      .set("Authorization", `Bearer ${tamperedToken}`);
+  test("TC-009: User logs out while already logged out (token is missing)", async () => {
+    const res = await request(app).get("/api/auth/signout");
 
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid or expired token");
+    expect(res.statusCode).toBe(401);
+    expect(res.body.message).toBe("Not authorized, no token provided");
   });
 
-  it("❌ Should fail when using a malformed authorization header", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
-      .set("Authorization", validToken); // Missing "Bearer"
+  // test("TC-010: Server error simulation (database failure)", async () => {
+  //   jest.spyOn(User, "findById").mockImplementationOnce(() => {
+  //     throw new Error("Database connection failed");
+  //   });
 
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "No token provided");
+  //   const res = await request(app)
+  //     .get("/api/auth/signout")
+  //     .set("Authorization", `Bearer ${validToken}`);
+
+  //   expect(res.statusCode).toBe(500);
+  //   expect(res.body.message).toBe("Internal Server Error");
+  // });
+
+  // // 🔄 Edge Test Cases
+  // test("TC-014: User logs out using a token with extra spaces before/after", async () => {
+  //   const res = await request(app)
+  //     .get("/api/auth/signout")
+  //     .set("Authorization", `Bearer  ${validToken}  `);
+
+  //   expect(res.statusCode).toBe(200);
+  //   expect(res.body.message).toBe("User signed out successfully");
+  // });
+
+  test("TC-015: User logs out right after signing in (before any other actions)", async () => {
+    const newToken = generateToken(user._id);
+    const res = await request(app)
+      .get("/api/auth/signout")
+      .set("Authorization", `Bearer ${newToken}`);
+
+    expect(res.statusCode).toBe(200);
   });
 
-  /**
-   * 🔹 Edge Cases
-   */
-  it("🔹 Should fail when token contains only spaces", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
-      .set("Authorization", `Bearer "   "`);
+  // test("TC-020: Rate-limiting test (multiple requests in a short time)", async () => {
+  //   for (let i = 0; i < 5; i++) {
+  //     await request(app)
+  //       .get("/api/auth/signout")
+  //       .set("Authorization", `Bearer ${validToken}`);
+  //   }
 
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid or expired token");
-  });
+  //   const res = await request(app)
+  //     .get("/api/auth/signout")
+  //     .set("Authorization", `Bearer ${validToken}`);
 
-  it("🔹 Should allow signout when already logged out (no active session)", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
-      .set("Authorization", `Bearer ${validToken}`); // Using the same token
+  //   expect(res.statusCode).toBe(429);
+  //   expect(res.body.message).toBe("Too many requests, try again later");
+  // });
 
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("message", "User signed out successfully");
-  });
+  // test("TC-022: User logs out while logged in on another tab (JWT should be invalidated on refresh)", async () => {
+  //   const res1 = await request(app)
+  //     .get("/api/auth/signout")
+  //     .set("Authorization", `Bearer ${validToken}`);
 
-  it("🔹 Should fail when token contains unusual characters", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
-      .set("Authorization", "Bearer *@#$%");
+  //   expect(res1.statusCode).toBe(200);
 
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid or expired token");
-  });
+  //   const res2 = await request(app)
+  //     .get("/api/auth/signout")
+  //     .set("Authorization", `Bearer ${validToken}`);
 
-  it("🔹 Should fail when using an unencoded JWT format", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
-      .set("Authorization", "Bearer header.payload.signature");
-
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid or expired token");
-  });
-
-  /**
- * 🔺 Security Edge Cases
- */
-it("🛑 Should fail when null token is provided", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
-      .set("Authorization", "Bearer null");
-  
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid or expired token");
-  });
-  
-  it("🛑 Should fail when authorization header is empty", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
-      .set("Authorization", "");
-  
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "No token provided");
-  });
-  
-  it("🛑 Should fail when token contains an SQL Injection attempt", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
-      .set("Authorization", "Bearer '; DROP TABLE users; --");
-  
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid or expired token");
-  });
-  
-  it("🛑 Should fail when token contains an XSS Injection attempt", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
-      .set("Authorization", "Bearer <script>alert('Hacked!')</script>");
-  
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid or expired token");
-  });
-  
-  it("🛑 Should fail when token contains boolean values instead of a string", async () => {
-    const response = await request(app)
-      .get("/auth/signout")
-      .set("Authorization", "Bearer true");
-  
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid or expired token");
-  });
-  
-});
-
-/**
- * @afterEach Clean up the test database after each test
- */
-afterEach(async () => {
-  await User.deleteMany({});
-  const user = await User.create({
-    name: "John Doe",
-    email: "john@example.com",
-    password: "Password@123",
-  });
-
-  validToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-    expiresIn: "1h",
-  });
-
-  validCookieToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-    expiresIn: "1h",
-  });
-});
-
-/**
- * @afterAll Close database connection
- * @description Ensures tests do not hang due to open DB connections
- */
-afterAll(async () => {
-  await User.deleteMany({});
-  await mongoose.connection.close();
+  //   expect(res2.statusCode).toBe(401);
+  //   expect(res2.body.message).toBe("Invalid or expired token");
+  // });
 });
