@@ -77,6 +77,7 @@ const Navbar: React.FC = () => {
     logout();
     navigate("/signin");
     setLogoutModalOpen(false);
+    setAnchorEl(null);
   };
 
   /**
@@ -91,7 +92,7 @@ const Navbar: React.FC = () => {
       <Toolbar>
         {/* Branding */}
         <Typography variant="h6" sx={{ flexGrow: 1 }}>
-          MERN Skeleton
+          MERN Social
         </Typography>
 
         {/* Hamburger Menu for Mobile View */}

@@ -12,7 +12,7 @@ import {
   deleteUser,
 } from "../controllers/userController.js";
 import { protect, validateQueryParams } from "../middleware/authMiddleware.js";
-import upload from "../services/fileUploadService.js";
+import uploadMiddleware from "../services/fileUploadService.js";
 
 const router = express.Router();
 
@@ -35,7 +35,7 @@ router.get("/:userId", protect, getUserById);
  * @desc Update user profile
  * @access Private
  */
-router.put("/:userId", protect, upload.single("profilePicture"), updateUser);
+router.put("/:userId", protect, uploadMiddleware, updateUser);
 
 /**
  * @route DELETE /api/users/:userId

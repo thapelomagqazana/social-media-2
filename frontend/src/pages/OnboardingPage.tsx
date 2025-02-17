@@ -21,6 +21,7 @@ import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import { useAuth } from "../context/AuthContext";
 import { updateUser } from "../services/UserService";
 
 // Define type for user profile updates
@@ -57,6 +58,7 @@ const schema = yup.object().shape({
  */
 const OnboardingPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [profilePic, setProfilePic] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" as "success" | "error" });
@@ -105,15 +107,20 @@ const OnboardingPage = () => {
    * @description Handles onboarding form submission.
    */
   const onSubmit = async (formData: UserProfileUpdate) => {
+    if (!user?.id) {
+      setSnackbar({ open: true, message: "User ID is missing. Please log in again.", severity: "error" });
+      return;
+    }
+  
     setLoading(true);
     try {
-      await updateUser("userId", {
+      await updateUser(user.id, {
         displayName: formData.displayName,
         bio: formData.bio,
         interests: formData.interests,
         profilePicture: profilePic, // Placeholder for actual file upload implementation
       });
-
+  
       setSnackbar({ open: true, message: "Profile completed successfully!", severity: "success" });
       setTimeout(() => navigate("/dashboard"), 2000);
     } catch (error: unknown) {
@@ -121,7 +128,7 @@ const OnboardingPage = () => {
         const axiosError = error as { response?: { data?: { message?: string } } };
         setSnackbar({
           open: true,
-          message: axiosError.response?.data?.message || "Signup failed",
+          message: axiosError.response?.data?.message || "Profile update failed",
           severity: "error",
         });
       } else {
@@ -135,6 +142,7 @@ const OnboardingPage = () => {
       setLoading(false);
     }
   };
+  
 
   /**
    * @function handleSkip

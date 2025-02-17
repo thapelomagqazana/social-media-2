@@ -35,7 +35,10 @@ interface DecodedToken {
   id: string;
 }
 
-// AuthProvider Component
+/**
+ * @component AuthProvider
+ * @description Manages authentication state and user persistence.
+ */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
 
@@ -52,16 +55,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
-   * Retrieve credentials on app load
+   * Retrieve credentials from localStorage on page reload
    */
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const userId = localStorage.getItem("userId");
+    const storedUser = localStorage.getItem("user");
 
-    if (!token || !userId || isTokenExpired(token)) {
+    if (!token || !storedUser || isTokenExpired(token)) {
       logout(); // Expired or missing token → log out
       return;
     }
+
+    setUser(JSON.parse(storedUser)); // Restore user data from localStorage
   }, []);
 
   /**
@@ -69,7 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    */
   const authUser = (data: any) => {
     localStorage.setItem("token", data.token);
-    localStorage.setItem("userId", data.user.id);
+    localStorage.setItem("user", JSON.stringify(data.user)); // Store user object
     setUser(data.user);
   };
 
@@ -79,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     logoutUser();
     localStorage.removeItem("token");
-    localStorage.removeItem("userId");
+    localStorage.removeItem("user");
     setUser(null);
   };
 

@@ -6,7 +6,7 @@
 
 import User from "../models/User.js";
 import mongoose from "mongoose";
-
+import bcrypt from "bcryptjs";
 /**
  * @function getUsers
  * @description Retrieves all users from the database.
@@ -65,7 +65,6 @@ export const getUserById = async (req, res) => {
 
     res.json({ user });
   } catch (error) {
-    // console.error("❌ Error fetching user:", error.message);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -78,31 +77,76 @@ export const getUserById = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { name, bio } = req.body;
+    const { name, email, password, bio, interests, displayName } = req.body;
+    const authUserId = req.user.id; // Extracted from JWT token
 
-    if (req.user.id !== userId) {
-      return res.status(403).json({ message: "Unauthorized to update this profile" });
+    // Check if the authenticated user is updating their own profile
+    if (userId !== authUserId) {
+      return res.status(403).json({ message: "Unauthorized to update this profile." });
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    // Handle Multer File Upload Errors
+    if (req.fileValidationError) {
+      return res.status(400).json({ message: req.fileValidationError });
     }
 
-    // Update profile fields
-    user.name = name || user.name;
-    user.bio = bio || user.bio;
+    // Validate email format
+    if (email && !/^\S+@\S+\.\S+$/.test(email.trim())) {
+      return res.status(400).json({ message: "Invalid email format." });
+    }
 
+    // Validate password length
+    if (password && password.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters long." });
+    }
+
+    // Prepare update object
+    let updateFields = {};
+    if (name) updateFields.name = name;
+    if (email) updateFields.email = email.trim().toLowerCase();
+    if (bio) updateFields.bio = bio;
+    if (displayName) updateFields.displayName = displayName.trim();
+    if (interests) updateFields.interests = Array.isArray(interests) ? interests : interests.split(",");
+
+    // Handle password hashing (if updated)
+    if (password) {
+      updateFields.password = await bcrypt.hash(password, 10);
+    }
+
+    // Handle profile picture upload
     if (req.file) {
-      user.profilePicture = `/uploads/${req.file.filename}`;
+      updateFields.profilePicture = `/uploads/${req.file.filename}`;
     }
 
-    await user.save();
-    res.status(200).json({ message: "Profile updated successfully", user });
+    // Use `findOneAndUpdate()` for better performance
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: userId }, // Find user by ID
+      { $set: updateFields }, // Update only provided fields
+      { new: true, runValidators: true } // Return updated user & validate fields
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    // Send successful response
+    res.status(200).json({
+      message: "Profile updated successfully.",
+      user: {
+        id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        profilePicture: updatedUser.profilePicture,
+        bio: updatedUser.bio,
+        interests: updatedUser.interests,
+        displayName: updatedUser.displayName
+      },
+    });
   } catch (error) {
-    res.status(500).json({ message: "Server error. Please try again later." });
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
 
 /**
  * @function deleteUser

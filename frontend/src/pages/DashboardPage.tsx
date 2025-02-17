@@ -24,15 +24,14 @@ import {
  * Renders the user dashboard with navigation options.
  */
 const DashboardPage: React.FC = () => {
-  const { logout } = useAuth(); // Get user info and logout function
+  const { user, logout } = useAuth(); // Get user info and logout function
 
-  const userId = localStorage.getItem("userId") || "";
 
   // Fetch user profile details dynamically
-  const { data: user } = useQuery({
-    queryKey: ["userProfile", userId],
-    queryFn: () => fetchCurrentUser(userId as string), // Safe type assertion
-    enabled: Boolean(userId), // Prevent API call if userId is missing
+  useQuery({
+    queryKey: ["userProfile", user?.id],
+    queryFn: () => fetchCurrentUser(user?.id as string), // Safe type assertion
+    enabled: Boolean(user?.id), // Prevent API call if userId is missing
   });
 
   return (
@@ -52,7 +51,7 @@ const DashboardPage: React.FC = () => {
 
         {/* Navigation Links */}
         <Box display="flex" justifyContent="center" gap={2} mt={3}>
-          <Button variant="contained" color="primary" component={Link} to={`/profile/${user?._id}`}>
+          <Button variant="contained" color="primary" component={Link} to={`/profile/${user?.id}`}>
             View Profile
           </Button>
           <Button variant="contained" color="secondary" component={Link} to="/users">
