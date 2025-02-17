@@ -122,6 +122,16 @@ describe("PUT /api/users/:userId - Update User Profile", () => {
     expect(res.body.message).toBe("Password must be at least 8 characters long.");
   });
 
+  test("TC-051: User updates nio with more than 150 characters", async () => {
+    const res = await request(app)
+      .put(`/api/users/${testUser._id}`)
+      .set("Authorization", `Bearer ${authToken}`)
+      .send({ bio: "a".repeat(151) });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toBe("Bio exceeded 150 characters.");
+  });
+
   // test("TC-011: User updates profile picture with a non-image file (PDF)", async () => {
   //   const res = await request(app)
   //     .put(`/api/users/${testUser._id}`)

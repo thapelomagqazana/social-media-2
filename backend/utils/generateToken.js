@@ -6,8 +6,8 @@ import jwt from "jsonwebtoken";
  * @param {boolean} rememberMe - If true, extends token expiration
  * @returns {string} JWT token
  */
-export const generateToken = (userId, expiration) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, {
+export const generateToken = (userId, role, expiration) => {
+  return jwt.sign({ userId, role }, process.env.JWT_SECRET, {
     expiresIn: expiration,
   });
 };

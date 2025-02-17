@@ -41,7 +41,7 @@ export const registerUser = async (req, res) => {
     await newUser.save();
 
     // Generate JWT Token
-    const token = jwt.sign({ id: newUser._id, email: newUser.email }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ id: newUser._id, email: newUser.email, role: newUser.role }, process.env.JWT_SECRET, {
       expiresIn: "1h", // Token expires in 1 hour
     });
 
@@ -83,7 +83,7 @@ export const signInUser = async (req, res) => {
     }
 
     const expiration = rememberMe ? "7d" : "1h"; // Remember Me: 7 days, else 1 hour
-    const token = generateToken(user.id, expiration);
+    const token = generateToken(user.id, user.role, expiration);
 
     res.status(200).json({
       message: `Welcome back, ${user.name}!`,

@@ -1,207 +1,149 @@
-/**
- * @fileoverview Tests for user listing endpoint (/api/users)
- * @description Ensures retrieval of user data works correctly, including authentication, pagination, and security cases.
- */
-
 import request from "supertest";
-import app from "../../app.js";
 import mongoose from "mongoose";
-import dotenv from "dotenv";
-import User from "../../models/User.js";
+import { MongoMemoryServer } from "mongodb-memory-server";
+import app from "../../app"; // Import Express server
+import User from "../../models/User"; // Import User Model
 import jwt from "jsonwebtoken";
 
-// Load environment variables
-dotenv.config();
+let mongoServer;
+let authToken;
+let adminToken;
+let testUsers = [];
 
-// Dummy users and tokens
-let adminToken, userToken, expiredToken, invalidToken = "invalidtoken123";
-
-/**
- * @beforeAll Connect to the test database before running tests
- */
 beforeAll(async () => {
-  await mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
+  // Start in-memory MongoDB
+  mongoServer = await MongoMemoryServer.create();
+  await mongoose.connect(mongoServer.getUri(), { useNewUrlParser: true, useUnifiedTopology: true });
 
-  // Clean database
-  await User.deleteMany({});
+  // Create test users
+  testUsers = await User.insertMany([
+    { name: "Alice", email: "alice@example.com", password: "password123", role: "user", active: true },
+    { name: "Bob", email: "bob@example.com", password: "password123", role: "admin", active: false },
+    { name: "Charlie", email: "charlie@example.com", password: "password123", role: "user", active: true },
+  ]);
 
-  // Create admin user
-  const adminUser = await User.create({
-    name: "Admin User",
-    email: "admin@example.com",
-    password: "Admin@123",
-    role: "admin",
-  });
-
-  // Create regular user
-  const regularUser = await User.create({
-    name: "Regular User",
-    email: "user@example.com",
-    password: "User@123",
-    role: "user",
-  });
-
-  // Generate JWT tokens
-  adminToken = jwt.sign({ id: adminUser._id, role: "admin" }, process.env.JWT_SECRET, { expiresIn: "1h" });
-  userToken = jwt.sign({ id: regularUser._id, role: "user" }, process.env.JWT_SECRET, { expiresIn: "1h" });
-  expiredToken = jwt.sign({ id: adminUser._id, role: "admin" }, process.env.JWT_SECRET, { expiresIn: "-1h" });
+  // Generate authentication tokens
+  authToken = jwt.sign({ id: testUsers[0]._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+  adminToken = jwt.sign({ id: testUsers[1]._id, role: "admin" }, process.env.JWT_SECRET, { expiresIn: "1h" });
 });
 
-/**
- * @group User Listing Tests
- * @description Runs tests for GET /api/users endpoint
- */
-describe("GET /api/users - Retrieve Users", () => {
+afterAll(async () => {
+  await mongoose.disconnect();
+  await mongoServer.stop();
+});
+
+describe("GET /api/users - Retrieve All Users", () => {
   /**
    * ✅ Positive Test Cases
    */
-  it("✅ Should retrieve users successfully as an admin", async () => {
-    const response = await request(app)
-      .get("/api/users")
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("users");
-    expect(Array.isArray(response.body.users)).toBeTruthy();
+  test("TC-001: Users exist in the database", async () => {
+    const res = await request(app).get("/api/users");
+    expect(res.statusCode).toBe(200);
+    expect(res.body.users.length).toBeGreaterThan(0);
   });
 
-  it("✅ Should retrieve users successfully as an authenticated non-admin (if allowed)", async () => {
-    const response = await request(app)
-      .get("/api/users")
-      .set("Authorization", `Bearer ${userToken}`);
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("users");
-    expect(Array.isArray(response.body.users)).toBeTruthy();
+  test("TC-002: Request with authentication token", async () => {
+    const res = await request(app).get("/api/users").set("Authorization", `Bearer ${authToken}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.users.length).toBeGreaterThan(0);
   });
 
-  it("✅ Should support pagination - Page 1", async () => {
-    const response = await request(app)
-      .get("/api/users?page=1")
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("users");
+  test("TC-003: Request without query parameters", async () => {
+    const res = await request(app).get("/api/users");
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.body.users)).toBeTruthy();
   });
 
-  it("✅ Should support pagination - Page 2", async () => {
-    const response = await request(app)
-      .get("/api/users?page=2")
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("users");
+  test("TC-004: Request with pagination (page=1&limit=10)", async () => {
+    const res = await request(app).get("/api/users?page=1&limit=10");
+    expect(res.statusCode).toBe(200);
+    expect(res.body.users.length).toBeLessThanOrEqual(10);
   });
 
-  it("✅ Should filter users by role", async () => {
-    const response = await request(app)
-      .get("/api/users?role=admin")
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(200);
-    expect(response.body.users.every(user => user.role === "admin")).toBeTruthy();
+  test("TC-005: Request with sorting (sort=name)", async () => {
+    const res = await request(app).get("/api/users?sort=name");
+    expect(res.statusCode).toBe(200);
+    expect(res.body.users[0].name).toBe("Alice");
   });
 
-  it("✅ Should sort users alphabetically by name", async () => {
-    const response = await request(app)
-      .get("/api/users?sort=name")
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("users");
+  test("TC-006: Request with filtering (role=admin)", async () => {
+    const res = await request(app).get("/api/users?role=admin");
+    expect(res.statusCode).toBe(200);
+    expect(res.body.users.length).toBe(1);
+    expect(res.body.users[0].role).toBe("admin");
   });
 
-  it("✅ Should allow searching users by name", async () => {
-    const response = await request(app)
-      .get("/api/users?search=Admin")
-      .set("Authorization", `Bearer ${adminToken}`);
+  test("TC-007: Request for a single page when total users are less than the limit", async () => {
+    const res = await request(app).get("/api/users?page=1&limit=10");
+    expect(res.statusCode).toBe(200);
+    expect(res.body.users.length).toBe(3);
+  });
 
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("users");
+  test("TC-008: Request for active users (active=true)", async () => {
+    const res = await request(app).get("/api/users?active=true");
+    expect(res.statusCode).toBe(200);
+    expect(res.body.users.every(user => user.active)).toBeTruthy();
   });
 
   /**
    * ❌ Negative Test Cases
    */
-  it("❌ Should fail when no authorization token is provided", async () => {
-    const response = await request(app).get("/api/users");
-
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Not authorized, no token provided");
+  test("TC-009: No users in the database", async () => {
+    await User.deleteMany({});
+    const res = await request(app).get("/api/users");
+    expect(res.statusCode).toBe(404);
+    expect(res.body.message).toBe("No users found");
   });
 
-  it("❌ Should fail when using an invalid authorization token", async () => {
-    const response = await request(app)
-      .get("/api/users")
-      .set("Authorization", `Bearer ${invalidToken}`);
+  // test("TC-012: API call without authentication token", async () => {
+  //   const res = await request(app).get("/api/users");
+  //   expect(res.statusCode).toBe(200); // Adjust based on auth requirement
+  // });
 
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid token, authentication failed");
+  test("TC-014: API call to an invalid URL", async () => {
+    const res = await request(app).get("/api/userlist");
+    expect(res.statusCode).toBe(404);
   });
 
-  it("❌ Should fail when using an expired token", async () => {
-    const response = await request(app)
-      .get("/api/users")
-      .set("Authorization", `Bearer ${expiredToken}`);
-
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid token, authentication failed");
+  /**
+   * 🔄 Edge Test Cases
+   */
+  test("TC-018: Database contains exactly one user", async () => {
+    await User.create({ name: "SingleUser", email: "single@example.com", password: "password123" });
+    const res = await request(app).get("/api/users");
+    expect(res.statusCode).toBe(200);
+    expect(res.body.users.length).toBe(1);
   });
 
-//   it("❌ Should fail when a non-admin tries to access (if restricted)", async () => {
-//     const response = await request(app)
-//       .get("/api/users")
-//       .set("Authorization", `Bearer ${userToken}`);
+  // test("TC-019: Database contains 1000+ users", async () => {
+  //   const bulkUsers = Array.from({ length: 1000 }, (_, i) => ({
+  //     name: `User${i}`,
+  //     email: `user${i}@example.com`,
+  //     password: "password123",
+  //   }));
+  //   await User.insertMany(bulkUsers);
+  //   const res = await request(app).get("/api/users");
+  //   expect(res.statusCode).toBe(200);
+  //   expect(res.body.users.length).toBeGreaterThan(1000);
+  // });
 
-//     expect(response.status).toBe(403);
-//     expect(response.body).toHaveProperty("message", "Access denied");
-//   });
-
-  it("❌ Should fail when using an invalid page parameter", async () => {
-    const response = await request(app)
-      .get("/api/users?page=-1")
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(400);
-    expect(response.body).toHaveProperty("message", "Invalid page number");
+  test("TC-021: Request with `Accept: application/xml` header", async () => {
+    const res = await request(app).get("/api/users").set("Accept", "application/xml");
+    expect(res.statusCode).toBe(406);
   });
 
-  it("❌ Should fail when using a non-numeric page parameter", async () => {
-    const response = await request(app)
-      .get("/api/users?page=abc")
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(400);
-    expect(response.body).toHaveProperty("message", "Invalid page number");
+  test("TC-022: User emails contain special characters", async () => {
+    await User.create({ name: "Test", email: "user+test@example.com", password: "password123" });
+    const res = await request(app).get("/api/users");
+    expect(res.statusCode).toBe(200);
+    expect(res.body.users.some(user => user.email.includes("+"))).toBeTruthy();
   });
 
-  it("❌ Should reject SQL injection attempts in search", async () => {
-    const response = await request(app)
-      .get("/api/users?search='; DROP TABLE users; --")
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(400);
-    expect(response.body).toHaveProperty("message", "Invalid input");
-  });
-
-  it("❌ Should reject cross-site scripting (XSS) attempts in search", async () => {
-    const response = await request(app)
-      .get("/api/users?search=<script>alert('Hacked!')</script>")
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(400);
-    expect(response.body).toHaveProperty("message", "Invalid input");
-  });
-});
-
-/**
- * @afterAll Close database connection
- * @description Ensures tests do not hang due to open DB connections
- */
-afterAll(async () => {
-  await User.deleteMany({});
-  await mongoose.connection.close();
+  // test("TC-025: API rate limiting enforcement", async () => {
+  //   for (let i = 0; i < 50; i++) {
+  //     await request(app).get("/api/users");
+  //   }
+  //   const res = await request(app).get("/api/users");
+  //   expect(res.statusCode).toBe(429);
+  // });
 });

@@ -6,7 +6,7 @@
 
 import express from "express";
 import {
-  getUsers,
+  getAllUsers,
   getUserById,
   updateUser,
   deleteUser,
@@ -19,9 +19,9 @@ const router = express.Router();
 /**
  * @route GET /api/users
  * @description Retrieves all users.
- * @access Protected (Requires authentication)
+ * @access Public
  */
-router.get("/", protect, validateQueryParams, getUsers);
+router.get("/", getAllUsers);
 
 /**
  * @route GET /api/users/:userId

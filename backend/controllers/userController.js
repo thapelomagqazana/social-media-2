@@ -7,27 +7,67 @@
 import User from "../models/User.js";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+
 /**
- * @function getUsers
- * @description Retrieves all users from the database.
- * @param {Object} req - Express request object.
- * @param {Object} res - Express response object.
- * @returns {Object} JSON response containing a list of users (excluding passwords).
+ * @route GET /api/users
+ * @desc Get all users with pagination, filtering, and sorting
+ * @access Public (or Private if authentication is needed)
  */
-export const getUsers = async (req, res) => {
+export const getAllUsers = async (req, res) => {
   try {
-    let query = {};
-    if (req.query.role) {
-      query.role = req.query.role; // Apply role filter
+    // Handle Content Negotiation
+    if (req.headers.accept && req.headers.accept.includes("application/xml")) {
+      return res.status(406).json({ message: "XML format not supported. Use JSON." });
     }
-    // Fetch all users, excluding passwords for security
-    const users = await User.find(query).select("-password");
-    res.json({users: users});
+
+    // Pagination defaults (limit number of users returned per request)
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    // Sorting (e.g., ?sort=name or ?sort=-createdAt)
+    const sortBy = req.query.sort || "-createdAt";
+
+    // Filtering logic (e.g., ?role=admin or ?active=true)
+    const filter = {};
+    if (req.query.role) {
+      filter.role = req.query.role; // Ensure role filtering works
+    }
+    if (req.query.active !== undefined) {
+      filter.active = req.query.active === "true"; // Convert string to boolean
+    }
+
+    // Select specific fields to return (Projection)
+    const projection = "name email role active profilePicture createdAt";
+
+    // Fetch users with pagination, sorting, and filtering
+    const users = await User.find(filter)
+      .select(projection)
+      .sort(sortBy)
+      .skip(skip)
+      .limit(limit);
+
+    // Get total users count (for pagination metadata)
+    const totalUsers = await User.countDocuments(filter);
+
+    // Handle "No Users Found" scenario
+    if (!users.length) {
+      return res.status(404).json({ message: "No users found" });
+    }
+
+    // Send JSON response with pagination metadata
+    res.status(200).json({
+      totalUsers,
+      currentPage: page,
+      totalPages: Math.ceil(totalUsers / limit),
+      users,
+    });
+
   } catch (error) {
-    // console.error("❌ Error fetching users:", error.message);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
 
 /**
  * @function getUserById
@@ -98,6 +138,11 @@ export const updateUser = async (req, res) => {
     // Validate password length
     if (password && password.length < 8) {
       return res.status(400).json({ message: "Password must be at least 8 characters long." });
+    }
+
+    // Validate bio length
+    if (bio && bio.length > 150) {
+      return res.status(400).json({ message: "Bio exceeded 150 characters." });
     }
 
     // Prepare update object

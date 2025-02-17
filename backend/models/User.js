@@ -51,6 +51,20 @@ const UserSchema = new mongoose.Schema(
     },
     resetPasswordToken: String,
     resetPasswordExpires: Date,
+    role: {
+        type: String,
+        enum: ["admin", "user"],
+        default: "user",
+    },
+    active: {
+      type: Boolean,
+      default: true,
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+ 
     // isVerified: {
     //   type: Boolean,
     //   default: false,
