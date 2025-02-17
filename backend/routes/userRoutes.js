@@ -12,6 +12,7 @@ import {
   deleteUser,
 } from "../controllers/userController.js";
 import { protect, validateQueryParams } from "../middleware/authMiddleware.js";
+import upload from "../services/fileUploadService.js";
 
 const router = express.Router();
 
@@ -31,10 +32,10 @@ router.get("/:userId", protect, getUserById);
 
 /**
  * @route PUT /api/users/:userId
- * @description Updates user details (only the signed-in user can update their own info).
- * @access Protected (Requires authentication & authorization)
+ * @desc Update user profile
+ * @access Private
  */
-router.put("/:userId", protect, updateUser);
+router.put("/:userId", protect, upload.single("profilePicture"), updateUser);
 
 /**
  * @route DELETE /api/users/:userId

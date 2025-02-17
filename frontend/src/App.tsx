@@ -17,15 +17,15 @@ import ViewProfilePage from "./pages/ViewProfilePage";
 import EditProfilePage from "./pages/EditProfilePage";
 import DashboardPage from "./pages/DashboardPage";
 import ForgotPassword from "./pages/ForgotPassword";
-import Menu from "./components/Menu";
-// import Navbar from "./components/Navbar";
+// import Menu from "./components/Menu";
+import Navbar from "./components/Navbar";
 
 const App: React.FC = () => {
   return (
     <>
       {/* Navigation Menu */}
-      <Menu />
-      {/* <Navbar /> */}
+      {/* <Menu /> */}
+      <Navbar />
 
       {/* Define application routes */}
       <Routes>

@@ -71,57 +71,36 @@ export const getUserById = async (req, res) => {
 };
 
 /**
- * @function updateUser
- * @description Updates user details (name, password).
- * @param {Object} req - Express request object containing `userId` and updated data.
- * @param {Object} res - Express response object.
- * @returns {Object} JSON response with the updated user details.
+ * @desc Update user profile
+ * @route PUT /api/users/:userId
+ * @access Private
  */
 export const updateUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    const updateData = req.body;
-    const requestingUser = req.user; // Extract user from auth middleware
+    const { name, bio } = req.body;
 
-    // Validate user ID format before querying MongoDB
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ message: "Invalid user ID" });
+    if (req.user.id !== userId) {
+      return res.status(403).json({ message: "Unauthorized to update this profile" });
     }
 
-    // Prevent non-admin users from updating others
-    if (requestingUser.role !== "admin" && requestingUser.id !== userId) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
-    // Prevent restricted fields from being updated
-    if (updateData.password) {
-      return res.status(400).json({ message: "Password update not allowed" });
-    }
-
-    // Prevent `_id` modification
-    delete updateData._id;
-
-    // Find and update the user
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedUser) {
+    const user = await User.findById(userId);
+    if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json({ message: "User updated successfully", user: updatedUser });
-  } catch (error) {
-    // console.error("❌ Error updating user:", error.message);
-    
-    // Catch Mongoose validation errors
-    if (error.name === "ValidationError") {
-      return res.status(400).json({ message: error.message });
+    // Update profile fields
+    user.name = name || user.name;
+    user.bio = bio || user.bio;
+
+    if (req.file) {
+      user.profilePicture = `/uploads/${req.file.filename}`;
     }
 
-    res.status(500).json({ message: "Server error" });
+    await user.save();
+    res.status(200).json({ message: "Profile updated successfully", user });
+  } catch (error) {
+    res.status(500).json({ message: "Server error. Please try again later." });
   }
 };
 
