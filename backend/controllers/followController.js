@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import mongoose from "mongoose";
 
 /**
  * @desc Follow a user
@@ -49,11 +50,25 @@ export const unfollowUser = async (req, res) => {
     const { userId } = req.params;
     const currentUserId = req.user.id;
 
+    // Validate MongoDB ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID." });
+    }
+
+    if (userId === currentUserId) {
+      return res.status(400).json({ message: "You cannot unfollow yourself." });
+    }
+
     const userToUnfollow = await User.findById(userId);
     const currentUser = await User.findById(currentUserId);
 
     if (!userToUnfollow || !currentUser) {
       return res.status(404).json({ message: "User not found." });
+    }
+
+    // Check if the user is actually following the target user
+    if (!currentUser.following.includes(userId)) {
+      return res.status(400).json({ message: "You are not following this user." });
     }
 
     // Remove from following & followers list
