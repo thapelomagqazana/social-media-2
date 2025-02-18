@@ -64,4 +64,4 @@ router.post("/reset-password/:token", resetPassword);
 
 router.get("/signout", protect, logoutUser);
 
-module.exports = router;
+export default router;

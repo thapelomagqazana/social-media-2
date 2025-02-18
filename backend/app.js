@@ -13,6 +13,7 @@ import dotenv from "dotenv";
 import morgan from "morgan"; // HTTP request logger middleware
 import userRoutes from "./routes/userRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import followRoutes from "./routes/followRoutes.js";
 
 // Load environment variables
 dotenv.config();
@@ -45,8 +46,9 @@ app.use((req, res, next) => {
   
 
 // Routes
-app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/follow", followRoutes);
 
 // Default route
 app.get("/", (req, res) => res.send("MERN Skeleton API Running"));

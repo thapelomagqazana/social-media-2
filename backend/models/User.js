@@ -10,8 +10,8 @@ import bcrypt from "bcryptjs";
  * @property {String} profilePicture - URL to the profile picture (Optional)
  * @property {String} bio - Short bio for the user (Optional, max 150 chars)
  * @property {Array} interests - Array of user's selected interests (Optional)
- * @property {Boolean} isVerified - Flag to indicate if the email is verified (Default: false)
- * @property {String} verificationToken - Token used for email verification
+ * @property {Array} followers - List of user IDs following this user
+ * @property {Array} following - List of user IDs this user follows
  */
 const UserSchema = new mongoose.Schema(
   {
@@ -49,6 +49,8 @@ const UserSchema = new mongoose.Schema(
       type: [String], // Array of interests
       default: [],
     },
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Users following this user
+    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Users this user follows
     resetPasswordToken: String,
     resetPasswordExpires: Date,
     role: {
@@ -60,11 +62,6 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-    createdAt: {
-        type: Date,
-        default: Date.now,
-    },
- 
     // isVerified: {
     //   type: Boolean,
     //   default: false,

@@ -95,47 +95,6 @@ export const getUserById = async (req, res) => {
   }
 };
 
-
-// /**
-//  * @function getUserById
-//  * @description Retrieves a user by ID.
-//  * @param {Object} req - Express request object containing `userId` as a URL parameter.
-//  * @param {Object} res - Express response object.
-//  * @returns {Object} JSON response containing the user data (excluding password).
-//  */
-// export const getUserById = async (req, res) => {
-//   try {
-//     const { userId } = req.params;
-//     const requesterId = req.user.id;
-//     const isAdmin = req.user.role === "admin";
-
-//     // Ensure user can only fetch their profile or admin can fetch any user
-//     if (!isAdmin && userId !== requesterId) {
-//       return res.status(403).json({ message: "Access denied" });
-//     }
-
-//     // XSS Attack Prevention
-//     const xssRegex = /<script>|<\/script>/i;
-//     if (xssRegex.test(userId)) {
-//       return res.status(400).json({ message: "Invalid user ID" });
-//     }
-
-//     // Validate ObjectID format
-//     if (!mongoose.Types.ObjectId.isValid(userId) || !isNaN(userId) || userId.length > 24) {
-//       return res.status(404).json({ message: "User not found" });
-//     }
-
-//     const user = await User.findById(userId).select("-password");
-//     if (!user) {
-//       return res.status(404).json({ message: "User not found" });
-//     }
-
-//     res.json({ user });
-//   } catch (error) {
-//     res.status(500).json({ message: "Server error" });
-//   }
-// };
-
 /**
  * @desc Update user profile
  * @route PUT /api/users/:userId
