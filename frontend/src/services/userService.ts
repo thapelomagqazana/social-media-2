@@ -18,6 +18,7 @@ export interface User {
 
 // Type for updating user profile
 export interface UserProfileUpdate {
+  name?: string;
   displayName?: string;
   bio?: string;
   interests?: string[];
@@ -68,7 +69,7 @@ export const logoutUser = async () => {
 
 // Fetch the current logged-in user
 // Fetch a user by userId
-export const fetchCurrentUser = async (userId: string) => {
+export const fetchUserById = async (userId: string) => {
     const response = await api.get(`/api/users/${userId}`);
     return response.data.user;
 };
@@ -80,11 +81,26 @@ export const fetchUsers = async () => {
   return response.data;
 };
 
-// Update user profile
-export const updateUser = async (userId: string, updates: UserProfileUpdate) => {
-  const response = await api.put(`/api/users/${userId}`, updates);
-  return response.data;
+/**
+ * Update user profile.
+ * Accepts either `UserProfileUpdate` (JSON) or `FormData` (for file upload).
+ */
+export const updateUser = async (userId: string, updates: UserProfileUpdate | FormData) => {
+  // const isFormData = updates instanceof FormData;
+  // console.log(updates);
+
+  return api.put(`/api/users/${userId}`, updates, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  
+    }).then(response => response.data)
+    .catch(error => {
+      // console.error("❌ Update Error:", error.response?.data || error.message);
+      throw error;
+    });
 };
+
 
 // Delete a user
 export const deleteUser = async (userId: string) => {

@@ -40,7 +40,6 @@ const SignInForm = () => {
     setLoading(true);
     try {
       const response = await loginUser({ email: formData.email, password: formData.password, rememberMe: formData.rememberMe });
-      console.log(response);
       authUser(response);
       setSnackbar({ open: true, message: response.message, severity: "success" });
       setTimeout(() => navigate("/dashboard"), 2000);

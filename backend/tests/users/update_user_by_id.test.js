@@ -67,6 +67,21 @@ describe("PUT /api/users/:userId - Update User Profile", () => {
     expect(res.body.user.displayName).toBe("@testuser");
   });
 
+  test("TC-050: User updates with Thapelo", async () => {
+    const res = await request(app)
+      .put(`/api/users/${testUser._id}`)
+      .set("Authorization", `Bearer ${authToken}`)
+      .send({ 
+        name: 'Thapelo Magqazana11',
+        displayName: '@taps11',
+        bio: 'Hello World11',
+        interests: '["Technology","Sports","Finance","Music"]'
+      });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user.displayName).toBe('@taps11');
+  });
+
   test("TC-003: User updates password with a strong password", async () => {
     const res = await request(app)
       .put(`/api/users/${testUser._id}`)

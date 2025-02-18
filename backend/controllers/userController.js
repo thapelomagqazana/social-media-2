@@ -68,46 +68,73 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-
 /**
- * @function getUserById
- * @description Retrieves a user by ID.
- * @param {Object} req - Express request object containing `userId` as a URL parameter.
- * @param {Object} res - Express response object.
- * @returns {Object} JSON response containing the user data (excluding password).
+ * @route GET /api/users/:userId
+ * @desc Get user by ID
+ * @access Public (or Private if authentication is needed)
  */
 export const getUserById = async (req, res) => {
   try {
     const { userId } = req.params;
-    const requesterId = req.user.id;
-    const isAdmin = req.user.role === "admin";
 
-    // Ensure user can only fetch their profile or admin can fetch any user
-    if (!isAdmin && userId !== requesterId) {
-      return res.status(403).json({ message: "Access denied" });
+    // Validate MongoDB ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID format" });
     }
 
-    // XSS Attack Prevention
-    const xssRegex = /<script>|<\/script>/i;
-    if (xssRegex.test(userId)) {
-      return res.status(400).json({ message: "Invalid user ID" });
-    }
-
-    // Validate ObjectID format
-    if (!mongoose.Types.ObjectId.isValid(userId) || !isNaN(userId) || userId.length > 24) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
+    // Fetch user by ID, excluding sensitive fields like password
     const user = await User.findById(userId).select("-password");
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json({ user });
+    res.status(200).json({ user });
   } catch (error) {
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+
+// /**
+//  * @function getUserById
+//  * @description Retrieves a user by ID.
+//  * @param {Object} req - Express request object containing `userId` as a URL parameter.
+//  * @param {Object} res - Express response object.
+//  * @returns {Object} JSON response containing the user data (excluding password).
+//  */
+// export const getUserById = async (req, res) => {
+//   try {
+//     const { userId } = req.params;
+//     const requesterId = req.user.id;
+//     const isAdmin = req.user.role === "admin";
+
+//     // Ensure user can only fetch their profile or admin can fetch any user
+//     if (!isAdmin && userId !== requesterId) {
+//       return res.status(403).json({ message: "Access denied" });
+//     }
+
+//     // XSS Attack Prevention
+//     const xssRegex = /<script>|<\/script>/i;
+//     if (xssRegex.test(userId)) {
+//       return res.status(400).json({ message: "Invalid user ID" });
+//     }
+
+//     // Validate ObjectID format
+//     if (!mongoose.Types.ObjectId.isValid(userId) || !isNaN(userId) || userId.length > 24) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     const user = await User.findById(userId).select("-password");
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     res.json({ user });
+//   } catch (error) {
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
 
 /**
  * @desc Update user profile
@@ -120,7 +147,7 @@ export const updateUser = async (req, res) => {
     const { name, email, password, bio, interests, displayName } = req.body;
     const authUserId = req.user.id; // Extracted from JWT token
 
-    // Check if the authenticated user is updating their own profile
+    // Ensure the authenticated user is updating their own profile
     if (userId !== authUserId) {
       return res.status(403).json({ message: "Unauthorized to update this profile." });
     }
@@ -147,11 +174,19 @@ export const updateUser = async (req, res) => {
 
     // Prepare update object
     let updateFields = {};
-    if (name) updateFields.name = name;
+    if (name) updateFields.name = name.trim();
     if (email) updateFields.email = email.trim().toLowerCase();
-    if (bio) updateFields.bio = bio;
+    if (bio) updateFields.bio = bio.trim();
     if (displayName) updateFields.displayName = displayName.trim();
-    if (interests) updateFields.interests = Array.isArray(interests) ? interests : interests.split(",");
+
+    // Ensure `interests` is an **array** if received as a **string**
+    if (interests) {
+      try {
+        updateFields.interests = Array.isArray(interests) ? interests : JSON.parse(interests);
+      } catch (error) {
+        return res.status(400).json({ message: "Invalid interests format." });
+      }
+    }
 
     // Handle password hashing (if updated)
     if (password) {

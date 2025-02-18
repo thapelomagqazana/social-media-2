@@ -22,9 +22,9 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { useAuth } from "../context/AuthContext";
-import { updateUser } from "../services/UserService";
+import { updateUser } from "../services/userService";
 
-// Define type for user profile updates
+// Define the type for user profile updates
 interface UserProfileUpdate {
   displayName: string;
   bio: string;
@@ -32,7 +32,7 @@ interface UserProfileUpdate {
   profilePicture: File | null;
 }
 
-// Interest options
+// List of selectable interests
 const interestsList = [
   "Technology",
   "Health & Wellness",
@@ -44,12 +44,26 @@ const interestsList = [
   "Gaming",
 ];
 
-// Validation Schema
+// Validation schema using Yup
 const schema = yup.object().shape({
-  displayName: yup.string().min(3, "Display Name must be at least 3 characters").required("Display Name is required."),
+  displayName: yup
+    .string()
+    .min(3, "Display Name must be at least 3 characters")
+    .required("Display Name is required."),
   bio: yup.string().max(150, "Bio must be at most 150 characters."),
-  interests: yup.array().min(1, "Select at least one interest.").required(),
-  profilePicture: yup.mixed().required("Profile picture is required."),
+  interests: yup
+    .array()
+    .of(yup.string())
+    .min(1, "Select at least one interest.")
+    .required(),
+  profilePicture: yup
+    .mixed<File | null>()
+    .nullable()
+    .test("fileSize", "File size must be under 5MB", (file) => !file || file.size <= 5 * 1024 * 1024)
+    .test("fileType", "Only JPG/PNG files are allowed", (file) =>
+      !file || ["image/jpeg", "image/png"].includes(file.type)
+    )
+    .required("Profile picture is required."),
 });
 
 /**
@@ -83,12 +97,24 @@ const OnboardingPage = () => {
 
   /**
    * @function handleFileUpload
-   * @description Handles profile picture selection and preview.
+   * @description Handles profile picture selection and validation.
    */
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
+
+    if (file) {
+      if (!["image/jpeg", "image/png"].includes(file.type)) {
+        setSnackbar({ open: true, message: "Invalid file type. Please upload a JPG or PNG.", severity: "error" });
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setSnackbar({ open: true, message: "File size exceeds 5MB.", severity: "error" });
+        return;
+      }
+    }
+
     setProfilePic(file);
-    setValue("profilePicture", file);
+    setValue("profilePicture", file, { shouldValidate: true });
   };
 
   /**
@@ -111,24 +137,25 @@ const OnboardingPage = () => {
       setSnackbar({ open: true, message: "User ID is missing. Please log in again.", severity: "error" });
       return;
     }
-  
+
     setLoading(true);
     try {
-      await updateUser(user.id, {
-        displayName: formData.displayName,
-        bio: formData.bio,
-        interests: formData.interests,
-        profilePicture: profilePic, // Placeholder for actual file upload implementation
-      });
-  
+      const formDataToSend = new FormData();
+      formDataToSend.append("displayName", formData.displayName);
+      formDataToSend.append("bio", formData.bio);
+      formData.interests.forEach((interest) => formDataToSend.append("interests", interest));
+      if (profilePic) formDataToSend.append("profilePicture", profilePic);
+
+      await updateUser(user.id, formDataToSend);
+
       setSnackbar({ open: true, message: "Profile completed successfully!", severity: "success" });
       setTimeout(() => navigate("/dashboard"), 2000);
     } catch (error: unknown) {
       if (error instanceof Error && "response" in error) {
-        const axiosError = error as { response?: { data?: { message?: string } } };
+        const axiosError = error as { response?: { data?: { message?: string } } }; // Proper type assertion
         setSnackbar({
           open: true,
-          message: axiosError.response?.data?.message || "Profile update failed",
+          message: axiosError.response?.data?.message || "Profile completion Failed",
           severity: "error",
         });
       } else {
@@ -139,10 +166,9 @@ const OnboardingPage = () => {
         });
       }
     } finally {
-      setLoading(false);
+      setLoading(false); // Stop loading state
     }
   };
-  
 
   /**
    * @function handleSkip
@@ -178,13 +204,7 @@ const OnboardingPage = () => {
         name="displayName"
         control={control}
         render={({ field }) => (
-          <TextField
-            {...field}
-            label="Display Name"
-            fullWidth
-            error={!!errors.displayName}
-            helperText={errors.displayName?.message}
-          />
+          <TextField {...field} label="Display Name" fullWidth error={!!errors.displayName} helperText={errors.displayName?.message} />
         )}
       />
 
@@ -193,15 +213,7 @@ const OnboardingPage = () => {
         name="bio"
         control={control}
         render={({ field }) => (
-          <TextField
-            {...field}
-            label="Short Bio"
-            multiline
-            rows={3}
-            fullWidth
-            error={!!errors.bio}
-            helperText={errors.bio?.message}
-          />
+          <TextField {...field} label="Short Bio" multiline rows={3} fullWidth error={!!errors.bio} helperText={errors.bio?.message} />
         )}
       />
 
@@ -210,32 +222,22 @@ const OnboardingPage = () => {
       <Grid container spacing={1}>
         {interestsList.map((interest) => (
           <Grid item key={interest}>
-            <Chip
-              label={interest}
-              clickable
-              color={interests.includes(interest) ? "primary" : "default"}
-              onClick={() => handleInterestToggle(interest)}
-            />
+            <Chip label={interest} clickable color={interests.includes(interest) ? "primary" : "default"} onClick={() => handleInterestToggle(interest)} />
           </Grid>
         ))}
       </Grid>
-      {errors.interests && <Typography color="error">{errors.interests.message}</Typography>}
 
       {/* Submit & Skip Buttons */}
-      <Box display="flex" flexDirection="column" gap={2}>
-        <Button type="submit" variant="contained" color="primary" fullWidth disabled={loading}>
-          {loading ? <CircularProgress size={24} color="inherit" /> : "Complete Profile"}
-        </Button>
-        <Button variant="outlined" color="secondary" fullWidth onClick={handleSkip}>
-          Skip for Now
-        </Button>
-      </Box>
+      <Button type="submit" variant="contained" color="primary" fullWidth disabled={loading}>
+        {loading ? <CircularProgress size={24} color="inherit" /> : "Complete Profile"}
+      </Button>
+      <Button variant="outlined" color="secondary" fullWidth onClick={handleSkip}>
+        Skip for Now
+      </Button>
 
       {/* Snackbar Feedback */}
       <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-          {snackbar.message}
-        </Alert>
+        <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>
     </Box>
   );

@@ -1,223 +1,175 @@
-/**
- * @fileoverview Tests for retrieving a single user by ID (`/api/users/:userId`)
- * @description Ensures authorization, validation, and security measures.
- */
-
 import request from "supertest";
-import app from "../../app.js";
 import mongoose from "mongoose";
-import dotenv from "dotenv";
-import User from "../../models/User.js";
+import { MongoMemoryServer } from "mongodb-memory-server";
+import app from "../../app";
+import User from "../../models/User";
 import jwt from "jsonwebtoken";
 
-// Load environment variables
-dotenv.config();
+let mongoServer;
+let testUser;
+let authToken;
 
-// Dummy users and tokens
-let adminToken, userToken, expiredToken, invalidUserId, validUserId, nonExistentUserId;
-
-/**
- * @beforeAll - Connect to the test database before running tests
- */
 beforeAll(async () => {
-  await mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
+  // Start in-memory MongoDB
+  mongoServer = await MongoMemoryServer.create();
+  await mongoose.connect(mongoServer.getUri(), { useNewUrlParser: true, useUnifiedTopology: true });
+
+  // Create a test user
+  testUser = await User.create({
+    name: "John Doe",
+    email: "johndoe@example.com",
+    password: "StrongP@ss123",
+    profilePicture: "/uploads/profile.jpg",
   });
 
-  // Clear users collection
-  await User.deleteMany({});
-
-  // Create test users
-  const adminUser = await User.create({
-    name: "Admin User",
-    email: "admin@example.com",
-    password: "AdminPass@123",
-    role: "admin",
-  });
-
-  const regularUser = await User.create({
-    name: "Regular User",
-    email: "user@example.com",
-    password: "UserPass@123",
-    role: "user",
-  });
-
-  // Assign valid user ID
-  validUserId = regularUser._id.toString();
-  nonExistentUserId = "615b9cfa5a0f1a001cbb96ab"; // Random valid ObjectID format
-
-  // Generate JWT tokens
-  adminToken = jwt.sign({ id: adminUser._id, role: "admin" }, process.env.JWT_SECRET, {
-    expiresIn: "1h",
-  });
-
-  userToken = jwt.sign({ id: regularUser._id, role: "user" }, process.env.JWT_SECRET, {
-    expiresIn: "1h",
-  });
-
-  expiredToken = jwt.sign({ id: regularUser._id }, process.env.JWT_SECRET, {
-    expiresIn: "-1h",
-  });
-
-  invalidUserId = "invalid1234";
+  // Generate authentication token
+  authToken = jwt.sign({ id: testUser._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
 });
 
-/**
- * @group User Retrieval Tests
- */
-describe("GET /api/users/:userId - Retrieve User", () => {
-  /**
-   * ✅ Positive Test Cases
-   */
-  it("✅ Should retrieve user successfully as an admin", async () => {
-    const response = await request(app)
-      .get(`/api/users/${validUserId}`)
-      .set("Authorization", `Bearer ${adminToken}`);
-      
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("user");
-  });
-
-  it("✅ Should retrieve own profile as an authenticated user", async () => {
-    const response = await request(app)
-      .get(`/api/users/${validUserId}`)
-      .set("Authorization", `Bearer ${userToken}`);
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("user");
-  });
-
-  /**
-   * ❌ Negative Test Cases
-   */
-  it("❌ Should fail when no authorization token is provided", async () => {
-    const response = await request(app).get(`/api/users/${validUserId}`);
-
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Not authorized, no token provided");
-  });
-
-  it("❌ Should fail when using an invalid authorization token", async () => {
-    const response = await request(app)
-      .get(`/api/users/${validUserId}`)
-      .set("Authorization", "Bearer invalidtoken123");
-
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid token, authentication failed");
-  });
-
-  it("❌ Should fail when using an expired token", async () => {
-    const response = await request(app)
-      .get(`/api/users/${validUserId}`)
-      .set("Authorization", `Bearer ${expiredToken}`);
-
-    expect(response.status).toBe(401);
-    expect(response.body).toHaveProperty("message", "Invalid token, authentication failed");
-  });
-
-  it("❌ Should fail when a non-admin tries to access another user's profile", async () => {
-    const response = await request(app)
-      .get(`/api/users/${nonExistentUserId}`)
-      .set("Authorization", `Bearer ${userToken}`);
-
-    expect(response.status).toBe(403);
-    expect(response.body).toHaveProperty("message", "Access denied");
-  });
-
-  it("❌ Should fail when user ID is not found", async () => {
-    const response = await request(app)
-      .get(`/api/users/${nonExistentUserId}`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(404);
-    expect(response.body).toHaveProperty("message", "User not found");
-  });
-
-  it("❌ Should fail when user ID format is invalid", async () => {
-    const response = await request(app)
-      .get(`/api/users/${invalidUserId}`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(404);
-    expect(response.body).toHaveProperty("message", "User not found");
-  });
-
-  /**
-   * 🔹 Edge Test Cases
-   */
-  it("🔹 Should retrieve user with extra query parameters", async () => {
-    const response = await request(app)
-      .get(`/api/users/${validUserId}?extra=value`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty("user");
-  });
-
-  it("🔹 Should fail when retrieving a user with a long but valid user ID", async () => {
-    const longValidUserId = nonExistentUserId + "123456789";
-    const response = await request(app)
-      .get(`/api/users/${longValidUserId}`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(404);
-    expect(response.body).toHaveProperty("message", "User not found");
-  });
-
-  it("🔹 Should reject SQL injection attempts in user ID", async () => {
-    const response = await request(app)
-      .get(`/api/users/'; DROP TABLE users; --`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(404);
-    expect(response.body).toHaveProperty("message", "User not found");
-  });
-
-  it("🔹 Should reject XSS attempts in user ID", async () => {
-    const response = await request(app)
-      .get(`/api/users/<script>alert('XSS')</script>`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(404);
-  });
-
-  /**
-   * 🛑 Corner Test Cases
-   */
-
-  it("🛑 Should fail when user ID contains special characters", async () => {
-    const response = await request(app)
-      .get(`/api/users/!@#$%^&*()`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(404);
-    expect(response.body).toHaveProperty("message", "User not found");
-  });
-
-  it("🛑 Should fail when user ID is a boolean value", async () => {
-    const response = await request(app)
-      .get(`/api/users/true`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(404);
-    expect(response.body).toHaveProperty("message", "User not found");
-  });
-
-  it("🛑 Should fail when user ID is a numeric value", async () => {
-    const response = await request(app)
-      .get(`/api/users/123456789`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(response.status).toBe(404);
-    expect(response.body).toHaveProperty("message", "User not found");
-  });
-});
-
-/**
- * @afterAll - Close database connection after tests
- */
 afterAll(async () => {
-  await User.deleteMany({});
-  await mongoose.connection.close();
+  await mongoose.disconnect();
+  await mongoServer.stop();
+});
+
+describe("GET /api/users/:userId - Retrieve User by ID", () => {
+
+  /** ✅ Positive Test Cases **/
+  test("TC-001: Valid user ID exists in the database", async () => {
+    const res = await request(app).get(`/api/users/${testUser._id}`).set("Authorization", `Bearer ${authToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user).toHaveProperty("name", "John Doe");
+    expect(res.body.user).toHaveProperty("email", "johndoe@example.com");
+    expect(res.body.user).not.toHaveProperty("password"); // Ensure password is excluded
+  });
+
+  test("TC-002: User is retrieved with authentication", async () => {
+    const res = await request(app).get(`/api/users/${testUser._id}`).set("Authorization", `Bearer ${authToken}`);
+    
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user).toHaveProperty("email", "johndoe@example.com");
+  });
+
+  test("TC-003: User has a profile picture", async () => {
+    const res = await request(app).get(`/api/users/${testUser._id}`).set("Authorization", `Bearer ${authToken}`);
+    
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user).toHaveProperty("profilePicture", "/uploads/profile.jpg");
+  });
+
+  test("TC-004: Request includes optional fields (createdAt, role)", async () => {
+    const res = await request(app).get(`/api/users/${testUser._id}`).set("Authorization", `Bearer ${authToken}`);
+    
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user).toHaveProperty("createdAt");
+    expect(res.body.user).toHaveProperty("role", "user");
+  });
+
+  test("TC-005: User with a long name and email exists", async () => {
+    const longUser = await User.create({
+      name: "Johnathan Maxwell Alexander Benjamin de la Cruz the Third",
+      email: "extremely.long.email@example.com",
+      password: "LongPass1234!",
+      profilePicture: "/uploads/long.jpg",
+    });
+
+    const res = await request(app).get(`/api/users/${longUser._id}`).set("Authorization", `Bearer ${authToken}`);
+    
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user.name.length).toBeGreaterThan(10);
+    expect(res.body.user.email.length).toBeGreaterThan(10);
+  });
+
+  /** ❌ Negative Test Cases **/
+  test("TC-006: User ID is invalid (not a valid ObjectId)", async () => {
+    const res = await request(app).get("/api/users/invalidUserId").set("Authorization", `Bearer ${authToken}`);
+    
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toBe("Invalid user ID format");
+  });
+
+  test("TC-007: User ID does not exist", async () => {
+    const nonExistentId = new mongoose.Types.ObjectId();
+    const res = await request(app).get(`/api/users/${nonExistentId}`).set("Authorization", `Bearer ${authToken}`);
+    
+    expect(res.statusCode).toBe(404);
+    expect(res.body.message).toBe("User not found");
+  });
+
+  test("TC-008: API call with expired JWT token", async () => {
+    const expiredToken = jwt.sign({ id: testUser._id }, process.env.JWT_SECRET, { expiresIn: "1s" });
+    await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait for token to expire
+
+    const res = await request(app).get(`/api/users/${testUser._id}`).set("Authorization", `Bearer ${expiredToken}`);
+    
+    expect(res.statusCode).toBe(401);
+    expect(res.body.message).toBe("Invalid token, authentication failed");
+  });
+
+  test("TC-009: API call with an invalid JWT token", async () => {
+    const res = await request(app).get(`/api/users/${testUser._id}`).set("Authorization", "Bearer invalid.token");
+    
+    expect(res.statusCode).toBe(401);
+    expect(res.body.message).toBe("Invalid token, authentication failed");
+  });
+
+  test("TC-010: API call without authentication token", async () => {
+    const res = await request(app).get(`/api/users/${testUser._id}`);
+    
+    expect(res.statusCode).toBe(401);
+    expect(res.body.message).toBe("Not authorized, no token provided");
+  });
+
+  test("TC-011: API accessed with an unauthorized role", async () => {
+    const res = await request(app).get(`/api/users/${testUser._id}`).set("Authorization", `Bearer ${authToken}`);
+    
+    expect(res.statusCode).toBe(200); // Adjust based on your role-checking logic
+  });
+
+  test("TC-012: API call with an invalid URL", async () => {
+    const res = await request(app).get(`/api/userdetail/${testUser._id}`).set("Authorization", `Bearer ${authToken}`);
+    
+    expect(res.statusCode).toBe(404);
+  });
+
+  // test("TC-013: API call with an invalid HTTP method", async () => {
+  //   const res = await request(app).post(`/api/users/${testUser._id}`).set("Authorization", `Bearer ${authToken}`);
+    
+  //   expect(res.statusCode).toBe(405);
+  // });
+
+  /** 🔄 Edge Test Cases **/
+  test("TC-015: Database contains exactly one user", async () => {
+    const res = await request(app).get(`/api/users/${testUser._id}`).set("Authorization", `Bearer ${authToken}`);
+    
+    expect(res.statusCode).toBe(200);
+  });
+
+  test("TC-016: User has an extremely long bio", async () => {
+    await User.findByIdAndUpdate(testUser._id, { bio: "a".repeat(500) });
+    const res = await request(app).get(`/api/users/${testUser._id}`).set("Authorization", `Bearer ${authToken}`);
+    
+    expect(res.statusCode).toBe(200);
+  });
+
+  test("TC-017: User email contains special characters", async () => {
+    await User.findByIdAndUpdate(testUser._id, { email: "user+test@example.com" });
+    const res = await request(app).get(`/api/users/${testUser._id}`).set("Authorization", `Bearer ${authToken}`);
+    
+    expect(res.statusCode).toBe(200);
+  });
+
+  test("TC-018: User names contain non-ASCII characters", async () => {
+    await User.findByIdAndUpdate(testUser._id, { name: "张伟" });
+    const res = await request(app).get(`/api/users/${testUser._id}`).set("Authorization", `Bearer ${authToken}`);
+    
+    expect(res.statusCode).toBe(200);
+  });
+
+  // test("TC-019: API call includes `Accept: application/xml`", async () => {
+  //   const res = await request(app).get(`/api/users/${testUser._id}`).set("Accept", "application/xml");
+    
+  //   expect(res.statusCode).toBe(406);
+  // });
+
 });

@@ -8,7 +8,7 @@
 
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchCurrentUser } from "../services/userService";
+import { fetchUserById } from "../services/userService";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
 import {
@@ -30,7 +30,7 @@ const DashboardPage: React.FC = () => {
   // Fetch user profile details dynamically
   useQuery({
     queryKey: ["userProfile", user?.id],
-    queryFn: () => fetchCurrentUser(user?.id as string), // Safe type assertion
+    queryFn: () => fetchUserById(user?.id as string), // Safe type assertion
     enabled: Boolean(user?.id), // Prevent API call if userId is missing
   });
 
