@@ -124,10 +124,22 @@ export const getFollowers = async (req, res) => {
 export const getFollowing = async (req, res) => {
   try {
     const { userId } = req.params;
+    const authUserId = req.user.id; // Extracted from JWT token
+
+    // Validate userId format
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID." });
+    }
+
     const user = await User.findById(userId).populate("following", "name profilePicture");
 
     if (!user) {
       return res.status(404).json({ message: "User not found." });
+    }
+
+    // If the user has a private account and the requester is not following them
+    if (user.isPrivate && !user.followers.includes(authUserId)) {
+      return res.status(403).json({ message: "This user's following list is private." });
     }
 
     res.status(200).json({ following: user.following });
