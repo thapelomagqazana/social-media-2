@@ -86,16 +86,28 @@ export const unfollowUser = async (req, res) => {
 
 /**
  * @desc Get list of followers
- * @route GET /api/followers/:userId
+ * @route GET /api/users/:userId/followers
  * @access Public
  */
 export const getFollowers = async (req, res) => {
   try {
     const { userId } = req.params;
+    const currentUserId = req.user.id;
+    
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID." });
+    }
+
     const user = await User.findById(userId).populate("followers", "name profilePicture");
 
     if (!user) {
       return res.status(404).json({ message: "User not found." });
+    }
+
+    // If the user has a private account and the requester is not following them
+    if (user.isPrivate && !user.followers.includes(currentUserId)) {
+      return res.status(403).json({ message: "This user's followers list is private." });
     }
 
     res.status(200).json({ followers: user.followers });
@@ -106,7 +118,7 @@ export const getFollowers = async (req, res) => {
 
 /**
  * @desc Get list of users followed by the user
- * @route GET /api/following/:userId
+ * @route GET /api/users/:userId/following
  * @access Public
  */
 export const getFollowing = async (req, res) => {

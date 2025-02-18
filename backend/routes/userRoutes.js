@@ -11,6 +11,7 @@ import {
   updateUser,
   deleteUser,
 } from "../controllers/userController.js";
+import { getFollowers, getFollowing } from "../controllers/followController.js";
 import { protect, validateQueryParams } from "../middleware/authMiddleware.js";
 import uploadMiddleware from "../services/fileUploadService.js";
 
@@ -43,5 +44,11 @@ router.put("/:userId", protect, uploadMiddleware, updateUser);
  * @access Protected (Requires authentication & authorization)
  */
 router.delete("/:userId", protect, deleteUser);
+
+// Get a user's followers
+router.get("/:userId/followers", protect, getFollowers);
+
+// Get a user's following list
+router.get("/:userId/following", protect, getFollowing);
 
 export default router;
