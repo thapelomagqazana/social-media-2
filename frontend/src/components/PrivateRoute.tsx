@@ -1,12 +1,13 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { CircularProgress, Box, Typography } from "@mui/material";
+import { useAuth } from "../context/AuthContext";
 
 /**
  * @component PrivateRoute
  * @description Restricts access to authenticated users only. Redirects to login if unauthenticated.
  */
 const PrivateRoute = () => {
-  const user = localStorage.getItem("user");
+  const { user } = useAuth(); // Get user state and logout function
 
   if (user === undefined) {
     // Show loading spinner while authentication state is being determined

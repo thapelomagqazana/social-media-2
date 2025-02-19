@@ -143,6 +143,33 @@ export const resetPassword = async (req, res) => {
     const { token } = req.params;
     const { newPassword } = req.body;
 
+    // Validate token presence
+    if (!token) {
+      return res.status(404).json({ message: "Token is required." });
+    }
+
+    // Validate new password input
+    if (!newPassword) {
+      return res.status(400).json({ message: "New password is required." });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters long." });
+    }
+
+    if (newPassword.length > 64) {
+      return res.status(400).json({ message: "Password is too long. Max length is 64 characters." });
+    }
+
+    // if (!/(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&])/g.test(newPassword)) {
+    //   return res.status(400).json({ message: "Password is too weak. Use a mix of letters, numbers, and symbols." });
+    // }
+
+    if (/\s/.test(newPassword)) {
+      return res.status(400).json({ message: "Password cannot contain spaces." });
+    }
+
+    // Find user by token
     const user = await User.findOne({
       resetPasswordToken: token,
       resetPasswordExpires: { $gt: Date.now() },
@@ -150,6 +177,11 @@ export const resetPassword = async (req, res) => {
 
     if (!user) {
       return res.status(400).json({ message: "Invalid or expired password reset token." });
+    }
+
+    // Ensure the user is still active
+    if (!user.active) {
+      return res.status(400).json({ message: "User is inactive or deleted." });
     }
 
     user.password = newPassword;
@@ -162,6 +194,7 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ message: "Server error. Please try again later." });
   }
 };
+
 
 
 /**

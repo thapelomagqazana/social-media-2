@@ -10,47 +10,65 @@ import bcrypt from "bcryptjs";
 
 /**
  * @route GET /api/users
- * @desc Get all users with pagination, filtering, and sorting
+ * @desc Get all users with pagination, filtering, sorting, and search (supports partial search)
  * @access Public (or Private if authentication is needed)
  */
 export const getAllUsers = async (req, res) => {
   try {
-    // Handle Content Negotiation
+    let searchFilter = {}; // Default search filter
+
+    // Reject XML requests
     if (req.headers.accept && req.headers.accept.includes("application/xml")) {
       return res.status(406).json({ message: "XML format not supported. Use JSON." });
     }
 
-    // Pagination defaults (limit number of users returned per request)
+    // Pagination defaults
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    // Sorting (e.g., ?sort=name or ?sort=-createdAt)
+    // Sorting (?sort=name or ?sort=-createdAt)
     const sortBy = req.query.sort || "-createdAt";
 
-    // Filtering logic (e.g., ?role=admin or ?active=true)
-    const filter = {};
-    if (req.query.role) {
-      filter.role = req.query.role; // Ensure role filtering works
+    // Validate & sanitize search query (allow empty searches)
+    let searchQuery = req.query.search?.trim();
+
+    if (searchQuery === "") {
+      return res.status(400).json({ message: "Invalid search query." });
     }
-    if (req.query.active !== undefined) {
-      filter.active = req.query.active === "true"; // Convert string to boolean
+    
+    // Reject queries with invalid characters
+    if (searchQuery && /[^a-zA-Z0-9@._\s\-']/u.test(searchQuery)) {
+      return res.status(400).json({ message: "Invalid search query." });
     }
 
-    // Select specific fields to return (Projection)
-    const projection = "name email role active profilePicture createdAt";
+    if (searchQuery) {
+      searchFilter = {
+        $or: [
+          { name: { $regex: searchQuery, $options: "i" } },
+          { email: { $regex: searchQuery, $options: "i" } },
+          { displayName: { $regex: searchQuery, $options: "i" } },
+        ],
+      };
+    }
 
-    // Fetch users with pagination, sorting, and filtering
-    const users = await User.find(filter)
+    // Filtering logic (?role=admin or ?active=true)
+    if (req.query.role) searchFilter.role = req.query.role;
+    if (req.query.active !== undefined) searchFilter.active = req.query.active === "true";
+
+    // Projection (Only return selected fields)
+    const projection = "name email displayName role active profilePicture createdAt";
+
+    // Fetch users with pagination, sorting, filtering, and search
+    const users = await User.find(searchFilter)
       .select(projection)
       .sort(sortBy)
       .skip(skip)
       .limit(limit);
 
-    // Get total users count (for pagination metadata)
-    const totalUsers = await User.countDocuments(filter);
+    // Get total user count
+    const totalUsers = await User.countDocuments(searchFilter);
 
-    // Handle "No Users Found" scenario
     if (!users.length) {
       return res.status(404).json({ message: "No users found" });
     }
@@ -62,9 +80,8 @@ export const getAllUsers = async (req, res) => {
       totalPages: Math.ceil(totalUsers / limit),
       users,
     });
-
   } catch (error) {
-    res.status(500).json({ message: "Internal Server Error" });
+    res.status(500).json({ message: "Internal Server Error." });
   }
 };
 
@@ -135,7 +152,7 @@ export const updateUser = async (req, res) => {
     let updateFields = {};
     if (name) updateFields.name = name.trim();
     if (email) updateFields.email = email.trim().toLowerCase();
-    if (bio) updateFields.bio = bio.trim();
+    if (bio) updateFields.bio = bio.trim().replace("@", "");
     if (displayName) updateFields.displayName = displayName.trim();
 
     // Ensure `interests` is an **array** if received as a **string**

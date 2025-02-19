@@ -42,7 +42,7 @@ const SignInForm = () => {
       const response = await loginUser({ email: formData.email, password: formData.password, rememberMe: formData.rememberMe });
       authUser(response);
       setSnackbar({ open: true, message: response.message, severity: "success" });
-      setTimeout(() => navigate("/dashboard"), 2000);
+      setTimeout(() => navigate("/home"), 2000);
     } catch (error: unknown) {
         if (error instanceof Error && "response" in error) {
           const axiosError = error as { response?: { data?: { message?: string } } }; // Proper type assertion

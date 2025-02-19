@@ -22,7 +22,7 @@ const router = express.Router();
  * @description Retrieves all users.
  * @access Public
  */
-router.get("/", getAllUsers);
+router.get("/", validateQueryParams, getAllUsers);
 
 /**
  * @route GET /api/users/:userId

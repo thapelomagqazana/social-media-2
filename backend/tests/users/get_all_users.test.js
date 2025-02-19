@@ -1,8 +1,8 @@
 import request from "supertest";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
-import app from "../../app"; // Import Express server
-import User from "../../models/User"; // Import User Model
+import app from "../../app";
+import User from "../../models/User";
 import jwt from "jsonwebtoken";
 
 let mongoServer;
@@ -17,9 +17,10 @@ beforeAll(async () => {
 
   // Create test users
   testUsers = await User.insertMany([
-    { name: "Alice", email: "alice@example.com", password: "password123", role: "user", active: true },
-    { name: "Bob", email: "bob@example.com", password: "password123", role: "admin", active: false },
-    { name: "Charlie", email: "charlie@example.com", password: "password123", role: "user", active: true },
+    { name: "Alice Johnson", email: "alice@example.com", displayName: "alicej", password: "password123", role: "user", active: true },
+    { name: "Bob Williams", email: "bob@example.com", displayName: "bobby", password: "password123", role: "admin", active: false },
+    { name: "Charlie Smith", email: "charlie@example.com", displayName: "charlies", password: "password123", role: "user", active: true },
+    { name: "David Brown", email: "david@example.com", displayName: "davey", password: "password123", role: "user", active: true },
   ]);
 
   // Generate authentication tokens
@@ -38,6 +39,7 @@ describe("GET /api/users - Retrieve All Users", () => {
    */
   test("TC-001: Users exist in the database", async () => {
     const res = await request(app).get("/api/users");
+
     expect(res.statusCode).toBe(200);
     expect(res.body.users.length).toBeGreaterThan(0);
   });
@@ -63,7 +65,7 @@ describe("GET /api/users - Retrieve All Users", () => {
   test("TC-005: Request with sorting (sort=name)", async () => {
     const res = await request(app).get("/api/users?sort=name");
     expect(res.statusCode).toBe(200);
-    expect(res.body.users[0].name).toBe("Alice");
+    expect(res.body.users[0].name).toBe("Alice Johnson");
   });
 
   test("TC-006: Request with filtering (role=admin)", async () => {
@@ -76,7 +78,7 @@ describe("GET /api/users - Retrieve All Users", () => {
   test("TC-007: Request for a single page when total users are less than the limit", async () => {
     const res = await request(app).get("/api/users?page=1&limit=10");
     expect(res.statusCode).toBe(200);
-    expect(res.body.users.length).toBe(3);
+    expect(res.body.users.length).toBe(4);
   });
 
   test("TC-008: Request for active users (active=true)", async () => {

@@ -1,83 +1,92 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import ProfileCard from "../components/Profile/ProfileCard";
-import { Button, Container, CircularProgress, Typography, Alert } from "@mui/material";
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { fetchUserById } from "../services/userService";
-
-// Define User Type
-interface User {
-  id: string;
-  name: string;
-  displayName?: string;
-  email: string;
-  profilePicture?: string;
-  bio?: string;
-  interests?: string[];
-}
+import ProfileHeader from "../components/Profile/ProfileHeader";
+// import PostsGrid from "../components/Profile/PostsGrid";
+import { CircularProgress, Button, Typography } from "@mui/material";
 
 /**
- * @component Profile
- * @description Displays user profile information with an "Edit Profile" button.
+ * Profile Page Component
+ * 
+ * Displays a user's profile including their bio, followers, posts, and follow button.
  */
-const Profile = () => {
-  const { userId } = useParams<{ userId: string }>(); // Get userId from the URL
-  const navigate = useNavigate();
-  const [profileData, setProfileData] = useState<User | null>(null);
-  const [loading, setLoading] = useState(false);
+const Profile: React.FC = () => {
+  const { userId } = useParams<{ userId: string }>();
+
+  // State management
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isFollowing, setIsFollowing] = useState<boolean>(false);
 
+  /**
+   * Fetch the user's profile when the component mounts
+   */
   useEffect(() => {
-    /**
-     * Fetches the user profile using `fetchUserById`
-     */
-    const loadUserProfile = async () => {
-      if (!userId) {
-        setError("User ID not found. Please log in again.");
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
+    const fetchProfile = async () => {
       try {
-        const userData: User = await fetchUserById(userId);
-        setProfileData(userData);
+        const data = await fetchUserById(userId!);
+        setProfile(data);
+        setIsFollowing(data.isFollowing);
       } catch {
-        setError("Failed to fetch user profile. Please try again.");
+        setError("User not found. The profile may have been deleted or the username is incorrect.");
       } finally {
         setLoading(false);
       }
     };
 
-    loadUserProfile();
+    fetchProfile();
   }, [userId]);
 
+  /**
+   * Handle Follow/Unfollow actions
+   */
+  const handleFollow = async () => {
+    try {
+      // await followUser(userId!);
+      setIsFollowing(true);
+    } catch {
+      alert("Could not follow user. Please try again.");
+    }
+  };
+
+  const handleUnfollow = async () => {
+    try {
+      // await unfollowUser(userId!);
+      setIsFollowing(false);
+    } catch {
+      alert("Could not unfollow user. Please try again.");
+    }
+  };
+
+  if (loading) return <CircularProgress className="mt-10" />;
+  if (error) return <Typography color="error">{error}</Typography>;
+
   return (
-    <Container maxWidth="sm">
-      {loading ? (
-        <CircularProgress sx={{ display: "block", mx: "auto", mt: 4 }} />
-      ) : error ? (
-        <Alert severity="error" sx={{ mt: 2 }}>
-          {error}
-        </Alert>
-      ) : profileData ? (
-        <>
-          <ProfileCard user={profileData} />
-          <Button
-            variant="contained"
-            color="primary"
-            fullWidth
-            onClick={() => navigate(`/profile/edit/${userId}`)}
-            sx={{ mt: 2 }}
-          >
-            Edit Profile
+    <div className="max-w-3xl mx-auto p-6 bg-white shadow-lg rounded-lg">
+      <ProfileHeader profile={profile} />
+
+      {/* Follow/Unfollow Button */}
+      <div className="mt-4">
+        {isFollowing ? (
+          <Button variant="outlined" color="secondary" onClick={handleUnfollow}>
+            Unfollow
           </Button>
-        </>
-      ) : (
-        <Typography variant="body1" textAlign="center" sx={{ mt: 4 }}>
-          No profile data available.
+        ) : (
+          <Button variant="contained" color="primary" onClick={handleFollow}>
+            Follow
+          </Button>
+        )}
+      </div>
+
+      {/* User’s Posts Section */}
+      <div className="mt-6">
+        <Typography variant="h6" className="mb-2">
+          Posts by {profile.name}
         </Typography>
-      )}
-    </Container>
+        {/* <PostsGrid userId={userId!} /> */}
+      </div>
+    </div>
   );
 };
 

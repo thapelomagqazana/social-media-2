@@ -11,12 +11,11 @@ import LandingPage from "./pages/LandingPage";
 import OnboardingPage from "./pages/OnboardingPage";
 import SignUpPage from "./pages/SignUpPage";
 import SignInPage from "./pages/SignInPage";
-import UsersListPage from "./pages/UsersListPage";
+import UsersList from "./components/Users/UsersList";
 import Profile from "./pages/Profile";
 import EditProfilePage from "./pages/EditProfile";
-import DashboardPage from "./pages/DashboardPage";
+import Home from "./pages/Home";
 import ForgotPassword from "./pages/ForgotPassword";
-// import Menu from "./components/Menu";
 import Navbar from "./components/Navbar";
 import PrivateRoute from "./components/PrivateRoute";
 
@@ -32,13 +31,13 @@ const App: React.FC = () => {
         <Route path="/signup" element={<SignUpPage />} />
         <Route path="/signin" element={<SignInPage />} />
         <Route path="/reset-password" element={<ForgotPassword />} />
-        <Route path="/users" element={<UsersListPage />} />
+        <Route path="/users" element={<UsersList />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>
           <Route path="/profile/:userId" element={<Profile />} />
           <Route path="/profile/edit/:userId" element={<EditProfilePage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/home" element={<Home />} />
           <Route path="/onboarding" element={<OnboardingPage />} />
         </Route>
 

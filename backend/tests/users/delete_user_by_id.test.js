@@ -1,22 +1,21 @@
 import request from "supertest";
 import app from "../../app.js";
+import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
-import dotenv from "dotenv";
 import User from "../../models/User.js";
 import jwt from "jsonwebtoken";
-
-// Load environment variables
-dotenv.config();
-
 // Dummy users and tokens
 let adminToken, userToken, expiredToken, invalidUserId, validUserId, nonExistentUserId;
 
-beforeEach(async () => {
-  await mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
+let mongoServer;
 
+beforeAll(async () => {
+  // Start in-memory MongoDB
+  mongoServer = await MongoMemoryServer.create();
+  await mongoose.connect(mongoServer.getUri(), { useNewUrlParser: true, useUnifiedTopology: true });
+});
+
+beforeEach(async () => {
   // Clear users collection
   await User.deleteMany({});
 
@@ -49,7 +48,11 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await User.deleteMany({});
-  await mongoose.connection.close();
+});
+
+afterAll(async () => {
+  await mongoose.disconnect();
+  await mongoServer.stop();
 });
 
 // ✅ Positive Test Cases

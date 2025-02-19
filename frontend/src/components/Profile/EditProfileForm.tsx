@@ -134,13 +134,12 @@ const EditProfileForm = () => {
       if (profilePicture) formData.append("profilePicture", profilePicture);
       formData.append("interests", formattedInterests);
   
-      // console.log("🚀 Sending FormData:", Object.fromEntries(formData.entries())); // Debugging
   
       const updatedUser = await updateUser(userId, formData);
       setUser(updatedUser);
   
       setSnackbar({ open: true, message: "Profile updated successfully!", severity: "success" });
-      setTimeout(() => navigate(`/profile/${user.id}`), 2000);
+      setTimeout(() => navigate(`/profile/${userId}`), 2000);
     } catch (error: unknown) {
       if (error instanceof Error && "response" in error) {
         const axiosError = error as { response?: { data?: { message?: string } } };

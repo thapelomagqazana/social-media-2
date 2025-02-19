@@ -39,7 +39,6 @@ export const protect = async (req, res, next) => {
 
     next(); // Continue to the next middleware/controller
   } catch (error) {
-    // console.error("❌ Authentication Error:", error.message);
     res.status(401).json({ message: "Invalid token, authentication failed" });
   }
 };

@@ -138,7 +138,7 @@ const Navbar: React.FC = () => {
         ) : (
           <>
             {/* Desktop Navigation */}
-            <Button color="inherit" component={Link} to={user ? "/dashboard" : "/"}>
+            <Button color="inherit" component={Link} to={user ? "/home" : "/"}>
               Home
             </Button>
 

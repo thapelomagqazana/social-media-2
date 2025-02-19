@@ -67,7 +67,6 @@ export const logoutUser = async () => {
     return response.data;
 };
 
-// Fetch the current logged-in user
 // Fetch a user by userId
 export const fetchUserById = async (userId: string) => {
     const response = await api.get(`/api/users/${userId}`);
@@ -78,7 +77,8 @@ export const fetchUserById = async (userId: string) => {
 // Fetch all users (Admin only)
 export const fetchUsers = async () => {
   const response = await api.get("/api/users");
-  return response.data;
+  console.log(response.data.users);
+  return response.data.users;
 };
 
 /**
