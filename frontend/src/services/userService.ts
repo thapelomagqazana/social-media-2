@@ -77,7 +77,7 @@ export const fetchUserById = async (userId: string) => {
 // Fetch all users (Admin only)
 export const fetchUsers = async () => {
   const response = await api.get("/api/users");
-  console.log(response.data.users);
+  // console.log(response.data.users);
   return response.data.users;
 };
 
@@ -96,7 +96,6 @@ export const updateUser = async (userId: string, updates: UserProfileUpdate | Fo
   
     }).then(response => response.data)
     .catch(error => {
-      // console.error("❌ Update Error:", error.response?.data || error.message);
       throw error;
     });
 };

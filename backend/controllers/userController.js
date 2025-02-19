@@ -152,8 +152,8 @@ export const updateUser = async (req, res) => {
     let updateFields = {};
     if (name) updateFields.name = name.trim();
     if (email) updateFields.email = email.trim().toLowerCase();
-    if (bio) updateFields.bio = bio.trim().replace("@", "");
-    if (displayName) updateFields.displayName = displayName.trim();
+    if (bio) updateFields.bio = bio.trim();
+    if (displayName) updateFields.displayName = displayName.trim().replace("@", "");
 
     // Ensure `interests` is an **array** if received as a **string**
     if (interests) {

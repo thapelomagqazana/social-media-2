@@ -1,0 +1,120 @@
+/* Profile Header Container */
+.profile-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+/* Profile Avatar */
+.profile-avatar {
+    width: 100px !important;
+    height: 100px !important;
+    border: 3px solid #1da1f2;
+    transition: transform 0.3s ease-in-out;
+}
+
+.profile-avatar:hover {
+    transform: scale(1.1);
+}
+
+/* Edit Profile Icon */
+.edit-profile-icon {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #f0f0f0;
+    transition: background 0.3s ease-in-out;
+}
+
+.edit-profile-icon:hover {
+    background: #e0e0e0;
+}
+
+/* Profile Name */
+.profile-name {
+    font-size: 20px;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+/* Username */
+.profile-username {
+    font-size: 16px;
+    color: #777;
+}
+
+.profile-username:hover {
+    color: #1da1f2;
+}
+
+/* Bio */
+.profile-bio {
+    font-size: 14px;
+    color: #444;
+    margin-top: 5px;
+}
+
+/* Profile Stats */
+.profile-stats {
+    display: flex;
+    gap: 30px;
+    margin-top: 15px;
+}
+
+.stat-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.stat-value {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.stat-label {
+    font-size: 14px;
+    color: #1da1f2;
+}
+
+.stat-label:hover {
+    text-decoration: underline;
+    color: #0c85d0;
+    cursor: pointer;
+}
+
+
+/* Responsive Design */
+@media (max-width: 600px) {
+    .profile-header {
+        padding: 16px;
+    }
+
+    .profile-name {
+        font-size: 1.2rem;
+    }
+
+    .profile-bio {
+        font-size: 0.9rem;
+        max-width: 100%;
+    }
+
+    .profile-stats {
+        gap: 16px;
+    }
+
+    .stat-value {
+        font-size: 1rem;
+    }
+
+    .stat-label {
+        font-size: 0.75rem;
+    }
+}
+  

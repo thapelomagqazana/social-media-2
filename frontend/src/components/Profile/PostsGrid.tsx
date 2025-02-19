@@ -3,7 +3,7 @@ import { getUserPosts } from "../../services/userService";
 import { Card, CardContent, Typography } from "@mui/material";
 
 /**
- * 📌 Posts Grid Component
+ * Posts Grid Component
  * 
  * Displays a list of posts for a user.
  */
